@@ -1,0 +1,24 @@
+[package]
+name    = "atms_blst"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+name = "atms_blst"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[dependencies]
+blst = "0.3.7"
+blake2      = "0.9.2"
+thiserror = "1.0"
+rand_core   = "0.6.3"
+libc        = "0.2.40"
+num-bigint  = "0.4.0"
+
+[build-dependencies]
+cbindgen    = "0.7.1"
+
+[dev-dependencies]
+proptest    = "1.0.0"
+rand_chacha = "0.3.1"
+rand = "0.7"
