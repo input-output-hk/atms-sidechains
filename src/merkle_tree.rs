@@ -24,9 +24,7 @@
 //! assert!(mt.to_commitment().check(&keys[3], &path));
 //!
 //! # }
-use std::{
-    fmt::Debug,
-};
+use std::fmt::Debug;
 
 /// Path of hashes from root to leaf in a Merkle Tree. Contains all hashes on the path, and the index
 /// of the leaf.
@@ -69,16 +67,16 @@ pub trait MTHashLeaf {
 /// Tree of hashes, providing a commitment of data and its ordering.
 #[derive(Debug, Clone)]
 pub struct MerkleTreeCommitment<H>
-    where
-        H: MTHashLeaf,
+where
+    H: MTHashLeaf,
 {
     /// Root of the merkle tree, representing the commitment of all its leaves.
     pub value: H::F,
 }
 
 impl<H> MerkleTreeCommitment<H>
-    where
-        H: MTHashLeaf,
+where
+    H: MTHashLeaf,
 {
     /// Check an inclusion proof that `val` is part of the tree.
     pub fn check(&self, val: &[u8], proof: &Path<H::F>) -> bool {
@@ -102,8 +100,8 @@ impl<H> MerkleTreeCommitment<H>
 /// Tree of hashes, providing a commitment of data and its ordering.
 #[derive(Debug, Clone)]
 pub struct MerkleTree<H>
-    where
-        H: MTHashLeaf,
+where
+    H: MTHashLeaf,
 {
     // The nodes are stored in an array heap:
     // nodes[0] is the root,
@@ -119,8 +117,8 @@ pub struct MerkleTree<H>
 }
 
 impl<H> MerkleTree<H>
-    where
-        H: MTHashLeaf,
+where
+    H: MTHashLeaf,
 {
     /// converting a single L to bytes, and then calling H::from_bytes() should result
     /// in an H::F

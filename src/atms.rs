@@ -53,92 +53,97 @@
 //! # Example
 //! The following is an example of usage using the MSP signature scheme.
 
-
 #![allow(clippy::type_complexity)]
 
-use std::cmp::Ordering;
-use crate::error::{AtmsError, blst_err_to_atms};
+use crate::error::{blst_err_to_atms, AtmsError};
 use crate::merkle_tree::*;
 use blake2::digest::Digest;
+use blst::min_pk::{
+    AggregatePublicKey, AggregateSignature, PublicKey as BlstPk, SecretKey as BlstSk,
+    Signature as BlstSig,
+};
+use blst::BLST_ERROR;
 use rand_core::{CryptoRng, RngCore};
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::iter::Sum;
 use std::ops::Sub;
-use ::blst::{BLST_ERROR};
-use ::blst::min_pk::{PublicKey, SecretKey, Signature};
-use blst::min_pk::{AggregatePublicKey, AggregateSignature};
 
 /// Individual private key
 #[derive(Debug)]
-pub struct AtmsPrivateKey(SecretKey);
+pub struct PrivateKey(BlstSk);
 
 /// Individual public key
 #[derive(Clone, Debug)]
-pub struct AtmsPublicKey(PublicKey);
+pub struct PublicKey(BlstPk);
 
 /// Proof of possession, proving the correctness of a public key
 #[derive(Debug)]
-pub struct AtmsPoP(Signature);
+pub struct ProofOfPossession(BlstSig);
 
 /// A public key with its proof of possession
 #[derive(Debug)]
-pub struct AtmsPublicKeyPoP(AtmsPublicKey, AtmsPoP);
+pub struct PublicKeyPoP(PublicKey, ProofOfPossession);
 
 /// ATMS partial signature.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AtmsSignature(Signature);
+pub struct Signature(BlstSig);
 
-impl AtmsPrivateKey {
+impl PrivateKey {
     /// Generate a new private key
-    pub fn gen<R: CryptoRng + RngCore>(rng: &mut R) {
+    pub fn gen<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
         let mut ikm = [0u8; 32];
         rng.fill_bytes(&mut ikm);
-        Self(SecretKey::key_gen(&ikm, &[]).expect("Error occurs when the length of ikm < 32. This will not happen here."));
+        Self(
+            BlstSk::key_gen(&ikm, &[])
+                .expect("Error occurs when the length of ikm < 32. This will not happen here."),
+        )
     }
 
     /// Produce a partial signature
-    pub fn sign(&self, msg: &[u8]) -> AtmsSignature {
-        AtmsSignature(self.0.sign(msg, &[], &[]))
+    pub fn sign(&self, msg: &[u8]) -> Signature {
+        Signature(self.0.sign(msg, &[], &[]))
     }
 }
 
-impl AtmsPublicKeyPoP {
-    pub fn verify(&self) -> Result<AtmsPublicKey, AtmsError> {
-        if self.1.0.verify(false, b"PoP", &[], &[], &self.0.0, false) == BLST_ERROR::BLST_SUCCESS {
+impl PublicKeyPoP {
+    /// Verify the proof of possession with respect to the associated public key.
+    pub fn verify(&self) -> Result<PublicKey, AtmsError> {
+        if self.1 .0.verify(false, b"PoP", &[], &[], &self.0 .0, false) == BLST_ERROR::BLST_SUCCESS
+        {
             return Ok(self.0.clone());
         }
         Err(AtmsError::InvalidPoP)
     }
 }
 
-impl From<AtmsPrivateKey> for AtmsPublicKey {
-    fn from(sk: AtmsPrivateKey) -> Self {
+impl From<&PrivateKey> for PublicKey {
+    fn from(sk: &PrivateKey) -> Self {
         Self(sk.0.sk_to_pk())
     }
 }
 
-impl From<AtmsPrivateKey> for AtmsPoP {
-    fn from(sk: AtmsPrivateKey) -> Self {
-        AtmsPoP(sk.0.sign(b"PoP", &[], &[]))
+impl From<&PrivateKey> for ProofOfPossession {
+    fn from(sk: &PrivateKey) -> Self {
+        ProofOfPossession(sk.0.sign(b"PoP", &[], &[]))
     }
 }
 
-impl From<AtmsPrivateKey> for AtmsPublicKeyPoP {
-    fn from(sk: AtmsPrivateKey) -> Self {
-        Self(AtmsPublicKey(sk.0.sk_to_pk()), sk.into())
+impl From<&PrivateKey> for PublicKeyPoP {
+    fn from(sk: &PrivateKey) -> Self {
+        Self(PublicKey(sk.0.sk_to_pk()), sk.into())
     }
 }
 
-impl AtmsPublicKey {
+impl PublicKey {
     /// Convert an `AtmsPublicKey` to its compressed byte representation
     pub fn to_bytes(&self) -> [u8; 48] {
         self.0.to_bytes()
     }
-    /// Compare two `AtmsPublicKey`. Used for PartialOrd impl, used to order signatures. The comparison
-    /// function can be anything, as long as it is consistent.
-    pub fn cmp_msp_mvk(&self, other: &AtmsPublicKey) -> Ordering {
+
+    fn cmp_msp_mvk(&self, other: &PublicKey) -> Ordering {
         let self_bytes = self.to_bytes();
         let other_bytes = other.to_bytes();
         let mut result = Ordering::Equal;
@@ -154,40 +159,40 @@ impl AtmsPublicKey {
     }
 }
 
-impl Hash for AtmsPublicKey {
+impl Hash for PublicKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
         Hash::hash_slice(&self.0.compress(), state)
     }
 }
 
 // We need to implement PartialEq instead of deriving it because we are implementing Hash.
-impl PartialEq for AtmsPublicKey {
+impl PartialEq for PublicKey {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl Eq for AtmsPublicKey {}
+impl Eq for PublicKey {}
 
-impl PartialOrd for AtmsPublicKey {
+impl PartialOrd for PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp_msp_mvk(other))
     }
 }
 
-impl Ord for AtmsPublicKey {
+impl Ord for PublicKey {
     fn cmp(&self, other: &Self) -> Ordering {
         self.cmp_msp_mvk(other)
     }
 }
 
-impl<'a> Sum<&'a Self> for AtmsPublicKey {
+impl<'a> Sum<&'a Self> for PublicKey {
     fn sum<I>(iter: I) -> Self
-        where
-            I: Iterator<Item = &'a Self>,
+    where
+        I: Iterator<Item = &'a Self>,
     {
-        let mut aggregate_key = PublicKey::default();
-        let keys: Vec<&PublicKey> = iter.map(|x| &x.0).collect();
+        let mut aggregate_key = BlstPk::default();
+        let keys: Vec<&BlstPk> = iter.map(|x| &x.0).collect();
 
         if !keys.is_empty() {
             aggregate_key = AggregatePublicKey::aggregate(&keys, false)
@@ -201,9 +206,9 @@ impl<'a> Sum<&'a Self> for AtmsPublicKey {
 
 /// We need some unsafe code here due to what is being exposed in the rust FFI.
 /// todo: take particular care reviewing this
-impl Sub for AtmsPublicKey {
+impl Sub for PublicKey {
     type Output = Self;
-    fn sub(self, rhs: Self) -> AtmsPublicKey {
+    fn sub(self, rhs: Self) -> PublicKey {
         use blst::{blst_bendian_from_fp, blst_fp, blst_fp_cneg, blst_fp_from_bendian};
         let mut rhs_bytes = rhs.0.serialize();
         unsafe {
@@ -215,9 +220,9 @@ impl Sub for AtmsPublicKey {
 
             blst_bendian_from_fp(&mut rhs_bytes[48], &neg_y);
         }
-        let neg_rhs = PublicKey::deserialize(&rhs_bytes)
+        let neg_rhs = BlstPk::deserialize(&rhs_bytes)
             .expect("The negative of a valid point is also a valid point.");
-        AtmsPublicKey(
+        PublicKey(
             AggregatePublicKey::aggregate(&[&neg_rhs, &self.0], false)
                 .expect("Points are valid")
                 .to_public_key(),
@@ -225,11 +230,17 @@ impl Sub for AtmsPublicKey {
     }
 }
 
-impl AtmsSignature {
+impl Signature {
+    /// Verify a signature
+    pub fn verify(&self, pk: &PublicKey, msg: &[u8]) -> Result<(), AtmsError> {
+        blst_err_to_atms(self.0.verify(false, msg, &[], &[], &pk.0, false))
+    }
+
     /// Convert an `AtmsSignature` to its compressed byte representation.
     pub fn to_bytes(&self) -> [u8; 96] {
         self.0.to_bytes()
     }
+
     fn cmp_msp_sig(&self, other: &Self) -> Ordering {
         let self_bytes = self.to_bytes();
         let other_bytes = other.to_bytes();
@@ -245,24 +256,24 @@ impl AtmsSignature {
     }
 }
 
-impl PartialOrd for AtmsSignature {
+impl PartialOrd for Signature {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp_msp_sig(other))
     }
 }
 
-impl Ord for AtmsSignature {
+impl Ord for Signature {
     fn cmp(&self, other: &Self) -> Ordering {
         self.cmp_msp_sig(other)
     }
 }
 
-impl<'a> Sum<&'a Self> for AtmsSignature {
+impl<'a> Sum<&'a Self> for Signature {
     fn sum<I>(iter: I) -> Self
-        where
-            I: Iterator<Item = &'a Self>,
+    where
+        I: Iterator<Item = &'a Self>,
     {
-        let signatures: Vec<&Signature> = iter.map(|x| &x.0).collect();
+        let signatures: Vec<&BlstSig> = iter.map(|x| &x.0).collect();
         let aggregate = AggregateSignature::aggregate(&signatures, false).expect("Signatures are assumed verified before aggregation. If signatures are invalid, they should not be aggregated.");
         Self(aggregate.to_signature())
     }
@@ -270,25 +281,25 @@ impl<'a> Sum<&'a Self> for AtmsSignature {
 
 /// An ATMS aggregate key, `Avk`, contains a merkle tree commitment, and the aggregated key
 #[derive(Debug)]
-pub struct AtmsAvk<H>
-    where
-        H: MTHashLeaf + Digest,
+pub struct Avk<H>
+where
+    H: MTHashLeaf + Digest,
 {
     /// The product of aggregated keys
-    aggregate_key: AtmsPublicKey,
+    aggregate_key: PublicKey,
     /// The `MerkleTreeCommitment`
     mt_commitment: MerkleTreeCommitment<H>,
     /// Number of parties registered under this `AtmsAvk`
     nr_parties: usize,
 }
 
-impl<H> AtmsAvk<H>
-    where
-        H: MTHashLeaf + Digest,
+impl<H> Avk<H>
+where
+    H: MTHashLeaf + Digest,
 {
     /// Check that this aggregation is derived from the given sequence of valid keys.
-    pub fn check(&self, keys: &[AtmsPublicKeyPoP]) -> Result<(), AtmsError> {
-        let akey2: AtmsRegistration<H> = AtmsRegistration::new(keys, 0)?;
+    pub fn check(&self, keys: &[PublicKeyPoP]) -> Result<(), AtmsError> {
+        let akey2: Registration<H> = Registration::new(keys, 0)?;
         if &self.mt_commitment.value == akey2.tree.root()
             && self.aggregate_key == akey2.aggregate_key
         {
@@ -300,45 +311,45 @@ impl<H> AtmsAvk<H>
 
 /// An ATMS registration
 #[derive(Debug)]
-pub struct AtmsRegistration<H>
-    where
-        H: MTHashLeaf + Digest,
+pub struct Registration<H>
+where
+    H: MTHashLeaf + Digest,
 {
     /// The product of the aggregated keys
-    aggregate_key: AtmsPublicKey,
+    aggregate_key: PublicKey,
     /// The Merkle tree containing the set of keys
     tree: MerkleTree<H>,
     /// Mapping to identify position of key within merkle tree
-    leaf_map: HashMap<AtmsPublicKey, usize>,
+    leaf_map: HashMap<PublicKey, usize>,
     /// Threshold of parties required to validate a signature
     threshold: usize,
 }
 
 /// An Aggregated Signature
 #[derive(Debug)]
-pub struct AtmsAggregateSig<H>
-    where
-        H: MTHashLeaf + Digest
+pub struct AggregateSig<H>
+where
+    H: MTHashLeaf + Digest,
 {
     /// The product of the aggregated signatures
-    aggregate: AtmsSignature,
+    aggregate: Signature,
     /// Proofs of membership of non-signing keys
-    keys_proofs: Vec<(AtmsPublicKey, Path<H::F>)>,
+    keys_proofs: Vec<(PublicKey, Path<H::F>)>,
 }
 
-impl<H> AtmsRegistration<H>
-    where
-        H: MTHashLeaf + Digest,
+impl<H> Registration<H>
+where
+    H: MTHashLeaf + Digest,
 {
     /// Aggregate a set of keys, and commit to them in a canonical order.
-    pub fn new(keys_pop: &[AtmsPublicKeyPoP], threshold: usize) -> Result<Self, AtmsError> {
-        let mut checked_keys: Vec<AtmsPublicKey> = Vec::with_capacity(keys_pop.len());
+    pub fn new(keys_pop: &[PublicKeyPoP], threshold: usize) -> Result<Self, AtmsError> {
+        let mut checked_keys: Vec<PublicKey> = Vec::with_capacity(keys_pop.len());
 
         for key_pop in keys_pop {
             checked_keys.push(key_pop.verify()?);
         }
 
-        let aggregate_key = checked_keys.iter().map(|k| k).sum();
+        let aggregate_key = checked_keys.iter().sum();
 
         // This ensures the order is the same for permutations of the input keys
         checked_keys.sort();
@@ -347,11 +358,13 @@ impl<H> AtmsRegistration<H>
         let mut leaf_map = HashMap::new();
         // todo: compress or serialize
         for (index, key) in checked_keys.iter().enumerate() {
-            leaf_map.insert(key.clone(), index).ok_or(AtmsError::ExistingKey(key.clone()))?;
+            if leaf_map.insert(key.clone(), index).is_some() {
+                return Err(AtmsError::ExistingKey(key.clone()));
+            }
             tree_vec.push(key.0.compress().to_vec());
         }
 
-        Ok(AtmsRegistration {
+        Ok(Registration {
             aggregate_key,
             tree: MerkleTree::create(&tree_vec),
             leaf_map,
@@ -360,26 +373,23 @@ impl<H> AtmsRegistration<H>
     }
 
     /// Return an `Avk` key from the key registration
-    pub fn to_avk(&self) -> AtmsAvk<H> {
-        AtmsAvk {
+    pub fn to_avk(&self) -> Avk<H> {
+        Avk {
             aggregate_key: self.aggregate_key.clone(),
             mt_commitment: self.tree.to_commitment(),
-            nr_parties: self.leaf_map.len()
+            nr_parties: self.leaf_map.len(),
         }
     }
 }
 
-impl<H> AtmsAggregateSig<H>
+impl<H> AggregateSig<H>
 where
     H: MTHashLeaf + Digest,
 {
     /// Aggregate a list of signatures.
     // todo: we probably want to verify all signatures
     // todo: do we want to pass the pks as part of the sigs, or maybe just some indices?
-    pub fn new(
-        registration: &AtmsRegistration<H>,
-        sigs: &[(AtmsPublicKey, AtmsSignature)],
-    ) -> Self {
+    pub fn new(registration: &Registration<H>, sigs: &[(PublicKey, Signature)]) -> Self {
         let signers = sigs.iter().map(|(k, _)| k).collect::<HashSet<_>>();
         let keys_proofs = registration
             .leaf_map
@@ -399,7 +409,7 @@ where
         // make sure that we don't have duplicates.
         unique_sigs.dedup();
 
-        let aggregate: AtmsSignature = unique_sigs.iter().map(|(_, s)| s).sum();
+        let aggregate: Signature = unique_sigs.iter().map(|(_, s)| s).sum();
         Self {
             aggregate,
             keys_proofs,
@@ -407,12 +417,7 @@ where
     }
 
     /// Verify that this aggregation is valid for the given collection of keys and message.
-    pub fn verify(
-        &self,
-        msg: &[u8],
-        keys: &AtmsAvk<H>,
-        threshold: usize,
-    ) -> Result<(), AtmsError> {
+    pub fn verify(&self, msg: &[u8], keys: &Avk<H>, threshold: usize) -> Result<(), AtmsError> {
         // Check duplicates by building this set of
         // non-signing keys
         let mut unique_non_signers = HashSet::new();
@@ -421,10 +426,7 @@ where
         // Check inclusion proofs
         // todo: best compress or serialize?
         for (non_signer, proof) in &self.keys_proofs {
-            if keys
-                .mt_commitment
-                .check(&non_signer.0.compress(), proof)
-            {
+            if keys.mt_commitment.check(&non_signer.0.compress(), proof) {
                 non_signing_size += 1;
                 // Check non-signers are distinct
                 if !unique_non_signers.insert(non_signer) {
@@ -443,6 +445,111 @@ where
         // Check with the underlying signature scheme that the quotient of the
         // aggregated key by the non-signers validates this signature.
         let final_key = keys.aggregate_key.clone() - unique_non_signers.into_iter().sum();
-        blst_err_to_atms(self.aggregate.0.verify(false, msg, &[], &[], &final_key.0, false))
+        blst_err_to_atms(
+            self.aggregate
+                .0
+                .verify(false, msg, &[], &[], &final_key.0, false),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use blake2::Blake2b;
+    use blst::min_sig::SecretKey;
+    use proptest::prelude::*;
+    use rand_chacha::ChaCha20Rng;
+    use rand_core::{OsRng, SeedableRng};
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(1000))]
+
+        #[test]
+        fn test_sig(
+            msg in prop::collection::vec(any::<u8>(), 1..128),
+            seed in any::<[u8;32]>(),
+        ) {
+            let sk = PrivateKey::gen(&mut ChaCha20Rng::from_seed(seed));
+            let pk = PublicKey::from(&sk);
+            let sig = sk.sign(&msg);
+            assert!(sig.verify(&pk, &msg).is_ok());
+        }
+
+        #[test]
+        fn test_invalid_sig(msg in prop::collection::vec(any::<u8>(), 1..128),
+                            seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let sk = PrivateKey::gen(&mut rng);
+            let pk = PublicKey::from(&sk);
+
+            let invalid_sk = PrivateKey::gen(&mut rng);
+            let invalid_sig = invalid_sk.sign(&msg);
+            assert!(invalid_sig.verify(&pk, &msg).is_err());
+        }
+
+        #[test]
+        fn test_aggregate_sig(msg in prop::collection::vec(any::<u8>(), 1..128),
+                              num_sigs in 1..16usize,
+                              seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut pkpops = Vec::new();
+            let mut sigs = Vec::new();
+            for _ in 0..num_sigs {
+                let sk = PrivateKey::gen(&mut rng);
+                let pk = PublicKey::from(&sk);
+                let pkpop = PublicKeyPoP::from(&sk);
+                let sig = sk.sign(&msg);
+                assert!(sig.verify(&pk, &msg).is_ok());
+                sigs.push((pk, sig));
+                pkpops.push(pkpop);
+            }
+            let registration = Registration::<Blake2b>::new(&pkpops, 0).expect("Registration should pass with valid keys");
+            let mu = AggregateSig::new(&registration, &sigs);
+            assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
+        }
+
+        #[test]
+        fn test_deaggregate_pks(msg in prop::collection::vec(any::<u8>(), 1..128),
+                              num_pks in 1..16,
+                              num_sigs in 1..5,
+                              seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut sks = Vec::new();
+            let mut pks = Vec::new();
+            for _ in 0..num_pks {
+                let sk = PrivateKey::gen(&mut rng);
+                let pk = PublicKey::from(&sk);
+                sks.push(sk);
+                pks.push(pk);
+            }
+
+            let mut aggr_pk = pks.iter().sum();
+            let mut sigs = Vec::new();
+
+            for sk in sks.iter().take(num_sigs as usize) {
+                sigs.push(sk.sign(&msg));
+            }
+
+            for pk in pks.iter().skip(num_sigs as usize) {
+                aggr_pk = aggr_pk - pk.clone();
+            }
+
+            let aggr_sig: Signature = sigs.iter().sum();
+            assert!(aggr_sig.verify(&aggr_pk, &msg).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_gen() {
+        for _ in 0..128 {
+            let sk = PrivateKey::gen(&mut OsRng);
+            let pkpop = PublicKeyPoP::from(&sk);
+
+            assert!(pkpop.verify().is_ok());
+        }
     }
 }

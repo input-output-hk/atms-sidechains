@@ -1,18 +1,17 @@
 //! Errors specific to this crate
 
-use crate::{AtmsPublicKey};
+use crate::PublicKey;
 use blst::BLST_ERROR;
 
 #[derive(Debug, thiserror::Error)]
 /// Errors associated with Atms
-pub enum AtmsError
-{
+pub enum AtmsError {
     /// This error occurs when one tries to register an existing key
     #[error("Exising key.")]
-    ExistingKey(AtmsPublicKey),
+    ExistingKey(PublicKey),
     /// The proof that `PK` is at a given idx is false
     #[error("Proof of Merkle Tree membership is invalid.")]
-    InvalidMerkleProof(AtmsPublicKey),
+    InvalidMerkleProof(PublicKey),
     /// A key submitted for aggregation is invalid.
     #[error("Invalid key provided in the set of keys.")]
     InvalidKey,
@@ -21,7 +20,7 @@ pub enum AtmsError
     InvalidPoP,
     /// Duplicate non-signers in signature
     #[error("Submitted keys of non-signers contains duplicates.")]
-    FoundDuplicates(AtmsPublicKey),
+    FoundDuplicates(PublicKey),
     /// Non-signers sum to the given stake, which is more than half of total
     #[error("Signatures do not exceed the required threshold {0}.")]
     TooMuchOutstandingSigners(usize),

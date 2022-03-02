@@ -6,7 +6,10 @@ mod error;
 mod merkle_tree;
 
 pub use crate::{
-    atms::{AtmsPublicKey, AtmsPrivateKey, AtmsSignature, AtmsPoP, AtmsAggregateSig},
+    atms::{
+        AggregateSig, PrivateKey, ProofOfPossession, PublicKey, PublicKeyPoP, Registration,
+        Signature,
+    },
     merkle_tree::MerkleTree,
 };
 
