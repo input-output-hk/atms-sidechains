@@ -3,12 +3,12 @@
 use crate::PublicKey;
 use blst::BLST_ERROR;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Eq, PartialEq)]
 /// Errors associated with Atms
 pub enum AtmsError {
     /// This error occurs when one tries to register an existing key
-    #[error("Exising key.")]
-    ExistingKey(PublicKey),
+    #[error("Cannot register existing key.")]
+    RegisterExistingKey(PublicKey),
     /// The proof that `PK` is at a given idx is false
     #[error("Proof of Merkle Tree membership is invalid.")]
     InvalidMerkleProof(PublicKey),

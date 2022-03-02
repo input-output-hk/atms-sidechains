@@ -76,19 +76,19 @@ use std::ops::Sub;
 pub struct PrivateKey(BlstSk);
 
 /// Individual public key
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct PublicKey(BlstPk);
 
 /// Proof of possession, proving the correctness of a public key
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct ProofOfPossession(BlstSig);
 
 /// A public key with its proof of possession
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct PublicKeyPoP(PublicKey, ProofOfPossession);
 
 /// ATMS partial signature.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Signature(BlstSig);
 
 impl PrivateKey {
@@ -113,7 +113,7 @@ impl PublicKeyPoP {
     pub fn verify(&self) -> Result<PublicKey, AtmsError> {
         if self.1 .0.verify(false, b"PoP", &[], &[], &self.0 .0, false) == BLST_ERROR::BLST_SUCCESS
         {
-            return Ok(self.0.clone());
+            return Ok(self.0);
         }
         Err(AtmsError::InvalidPoP)
     }
@@ -299,7 +299,7 @@ where
 {
     /// Check that this aggregation is derived from the given sequence of valid keys.
     pub fn check(&self, keys: &[PublicKeyPoP]) -> Result<(), AtmsError> {
-        let akey2: Registration<H> = Registration::new(keys, 0)?;
+        let akey2: Registration<H> = Registration::new(keys)?;
         if &self.mt_commitment.value == akey2.tree.root()
             && self.aggregate_key == akey2.aggregate_key
         {
@@ -321,8 +321,6 @@ where
     tree: MerkleTree<H>,
     /// Mapping to identify position of key within merkle tree
     leaf_map: HashMap<PublicKey, usize>,
-    /// Threshold of parties required to validate a signature
-    threshold: usize,
 }
 
 /// An Aggregated Signature
@@ -334,7 +332,7 @@ where
     /// The product of the aggregated signatures
     aggregate: Signature,
     /// Proofs of membership of non-signing keys
-    keys_proofs: Vec<(PublicKey, Path<H::F>)>,
+    pub keys_proofs: Vec<(PublicKey, Path<H::F>)>,
 }
 
 impl<H> Registration<H>
@@ -342,7 +340,7 @@ where
     H: MTHashLeaf + Digest,
 {
     /// Aggregate a set of keys, and commit to them in a canonical order.
-    pub fn new(keys_pop: &[PublicKeyPoP], threshold: usize) -> Result<Self, AtmsError> {
+    pub fn new(keys_pop: &[PublicKeyPoP]) -> Result<Self, AtmsError> {
         let mut checked_keys: Vec<PublicKey> = Vec::with_capacity(keys_pop.len());
 
         for key_pop in keys_pop {
@@ -357,9 +355,9 @@ where
         let mut tree_vec = Vec::with_capacity(keys_pop.len());
         let mut leaf_map = HashMap::new();
         // todo: compress or serialize
-        for (index, key) in checked_keys.iter().enumerate() {
-            if leaf_map.insert(key.clone(), index).is_some() {
-                return Err(AtmsError::ExistingKey(key.clone()));
+        for (index, &key) in checked_keys.iter().enumerate() {
+            if leaf_map.insert(key, index).is_some() {
+                return Err(AtmsError::RegisterExistingKey(key));
             }
             tree_vec.push(key.0.compress().to_vec());
         }
@@ -368,14 +366,13 @@ where
             aggregate_key,
             tree: MerkleTree::create(&tree_vec),
             leaf_map,
-            threshold,
         })
     }
 
     /// Return an `Avk` key from the key registration
     pub fn to_avk(&self) -> Avk<H> {
         Avk {
-            aggregate_key: self.aggregate_key.clone(),
+            aggregate_key: self.aggregate_key,
             mt_commitment: self.tree.to_commitment(),
             nr_parties: self.leaf_map.len(),
         }
@@ -394,10 +391,10 @@ where
         let keys_proofs = registration
             .leaf_map
             .keys()
-            .filter_map(|k| {
-                if !signers.contains(k) {
-                    let &idx = registration.leaf_map.get(k)?;
-                    Some((k.clone(), registration.tree.get_path(idx)))
+            .filter_map(|&k| {
+                if !signers.contains(&k) {
+                    let &idx = registration.leaf_map.get(&k)?;
+                    Some((k, registration.tree.get_path(idx)))
                 } else {
                     None
                 }
@@ -430,10 +427,10 @@ where
                 non_signing_size += 1;
                 // Check non-signers are distinct
                 if !unique_non_signers.insert(non_signer) {
-                    return Err(AtmsError::FoundDuplicates(non_signer.clone()));
+                    return Err(AtmsError::FoundDuplicates(*non_signer));
                 }
             } else {
-                return Err(AtmsError::InvalidMerkleProof(non_signer.clone()));
+                return Err(AtmsError::InvalidMerkleProof(*non_signer));
             }
         }
 
@@ -444,7 +441,7 @@ where
         }
         // Check with the underlying signature scheme that the quotient of the
         // aggregated key by the non-signers validates this signature.
-        let final_key = keys.aggregate_key.clone() - unique_non_signers.into_iter().sum();
+        let final_key = keys.aggregate_key - unique_non_signers.into_iter().sum();
         blst_err_to_atms(
             self.aggregate
                 .0
@@ -457,10 +454,9 @@ where
 mod tests {
     use super::*;
     use blake2::Blake2b;
-    use blst::min_sig::SecretKey;
     use proptest::prelude::*;
     use rand_chacha::ChaCha20Rng;
-    use rand_core::{OsRng, SeedableRng};
+    use rand_core::SeedableRng;
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(1000))]
@@ -486,7 +482,10 @@ mod tests {
 
             let invalid_sk = PrivateKey::gen(&mut rng);
             let invalid_sig = invalid_sk.sign(&msg);
-            assert!(invalid_sig.verify(&pk, &msg).is_err());
+            assert_eq!(
+                invalid_sig.verify(&pk, &msg).expect_err("Expecting invalid sig."),
+                AtmsError::InvalidSignature
+            );
         }
 
         #[test]
@@ -506,7 +505,7 @@ mod tests {
                 sigs.push((pk, sig));
                 pkpops.push(pkpop);
             }
-            let registration = Registration::<Blake2b>::new(&pkpops, 0).expect("Registration should pass with valid keys");
+            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
             let mu = AggregateSig::new(&registration, &sigs);
             assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
         }
@@ -541,12 +540,142 @@ mod tests {
             let aggr_sig: Signature = sigs.iter().sum();
             assert!(aggr_sig.verify(&aggr_pk, &msg).is_ok());
         }
+
+        fn test_correct_avk(num_pks in 1..16,
+                              seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut sks = Vec::new();
+            let mut pks = Vec::new();
+            for _ in 0..num_pks {
+                let sk = PrivateKey::gen(&mut rng);
+                let pk = PublicKeyPoP::from(&sk);
+                sks.push(sk);
+                pks.push(pk);
+            }
+
+            let registration = Registration::<Blake2b>::new(&pks).expect("Valid keys should have a valid registration.");
+            assert!(registration.to_avk().check(&pks).is_ok())
+        }
+
+        // todo: check whether we can use bool with proptest.
+        #[test]
+        fn test_atms_registration(n in 5..=32_usize,
+                          seed in any::<[u8; 32]>(),
+                          invalid_pop in 0..1,
+                          repeated_reg in 0..1,
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+
+            let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
+            for _ in 1..=n {
+                let sk = PrivateKey::gen(&mut rng);
+                let pkpop = PublicKeyPoP::from(&sk);
+                keyspop.push(pkpop);
+            }
+
+            if repeated_reg == 1 {
+                keyspop.push(keyspop[0].clone());
+            }
+
+            if invalid_pop == 1 {
+                let sk = PrivateKey::gen(&mut rng);
+                let false_pkpop = PublicKeyPoP::from(&sk);
+                keyspop[0] = false_pkpop;
+            }
+
+            match Registration::<Blake2b>::new(&keyspop) {
+                Ok(_) => {
+                    assert_eq!(0, invalid_pop);
+                    assert_eq!(0, repeated_reg);
+                },
+                Err(AtmsError::RegisterExistingKey(key)) => {
+                    assert_eq!(key, keyspop[0].0);
+                    assert_eq!(repeated_reg, 1);
+                },
+                Err(AtmsError::InvalidPoP) => {
+                    assert_eq!(invalid_pop, 1);
+                },
+                Err(err) => {
+                    unreachable!("{:?}", err);
+                }
+            };
+        }
+
+        #[test]
+        fn test_atms_aggregation(n in 5..=32_usize,
+                          subset_is in prop::collection::vec(1..=32_usize, 1..=32_usize),
+                          false_mk_proof in 0..32usize,
+                          msg in any::<[u8; 16]>(),
+                          seed in any::<[u8; 32]>(),
+                          repeate_non_signer in 0..1,
+        ) {
+            let threshold: usize = n - ((n - 1) / 3);
+            let mut rng = ChaCha20Rng::from_seed(seed);
+
+            let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
+            let mut signatures: Vec<(PublicKey, Signature)> = Vec::new();
+            for _ in 1..=n {
+                let sk = PrivateKey::gen(&mut rng);
+                let pk = PublicKey::from(&sk);
+                let pkpop = PublicKeyPoP::from(&sk);
+                let sig = sk.sign(&msg);
+                assert!(sig.verify(&pk, &msg).is_ok());
+                keyspop.push(pkpop);
+                signatures.push((pk, sig));
+            }
+
+            let atms_registration = Registration::<Blake2b>::new(&keyspop).expect("Registration should pass");
+            let avk = atms_registration.to_avk();
+            assert!(avk.check(&keyspop).is_ok());
+
+            // Note that we accept repeated signatures.
+            let subset = subset_is
+                .iter()
+                .map(|i| {
+                    signatures[i % n]
+                })
+                .collect::<Vec<_>>();
+
+            let mut aggr_sig = AggregateSig::new(&atms_registration, &subset);
+
+            let false_susbset: [(PublicKey, Signature); 1] = [signatures[false_mk_proof % n]];
+            let false_aggr = AggregateSig::new(&atms_registration, &false_susbset);
+            if aggr_sig.keys_proofs.len() != 0 {
+                aggr_sig.keys_proofs[0].1 = false_aggr.keys_proofs[0].1.clone();
+            } else if aggr_sig.keys_proofs.len() > 1 && repeate_non_signer == 1 {
+                aggr_sig.keys_proofs[0].0 = false_aggr.keys_proofs[1].0.clone();
+                aggr_sig.keys_proofs[0].1 = false_aggr.keys_proofs[1].1.clone();
+            }
+
+            match aggr_sig.verify(&msg, &avk, threshold) {
+                Ok(()) => {
+                    assert!(subset.len() >= threshold);
+                    if aggr_sig.keys_proofs.len() != 0 {
+                        assert_eq!(aggr_sig.keys_proofs[0].0, false_aggr.keys_proofs[0].0);
+                    }
+                },
+                Err(AtmsError::TooMuchOutstandingSigners(d)) => {
+                    assert!(d >= avk.nr_parties - threshold);
+                }
+                Err(AtmsError::InvalidMerkleProof(pk)) => {
+                    assert_eq!(pk, aggr_sig.keys_proofs[0].0);
+                    assert_ne!(aggr_sig.keys_proofs[0].0, false_aggr.keys_proofs[0].0);
+                }
+                Err(AtmsError::FoundDuplicates(pk)) => {
+                    assert_eq!(repeate_non_signer, 1);
+                    assert_eq!(pk, aggr_sig.keys_proofs[0].0);
+                }
+                Err(err) => unreachable!("{:?}", err)
+            }
+        }
     }
 
     #[test]
     fn test_gen() {
+        let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
         for _ in 0..128 {
-            let sk = PrivateKey::gen(&mut OsRng);
+            let sk = PrivateKey::gen(&mut rng);
             let pkpop = PublicKeyPoP::from(&sk);
 
             assert!(pkpop.verify().is_ok());
