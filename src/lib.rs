@@ -1,15 +1,14 @@
 #![warn(missing_docs, rust_2018_idioms)]
 //! ATMS
 
-mod atms;
+mod aggregation;
 mod error;
 mod merkle_tree;
+mod multi_sig;
 
 pub use crate::{
-    atms::{
-        AggregateSig, ProofOfPossession, PublicKey, PublicKeyPoP, Registration, Signature,
-        SigningKey,
-    },
+    aggregation::{AggregateSig, Registration},
     error::AtmsError,
     merkle_tree::MerkleTree,
+    multi_sig::{ProofOfPossession, PublicKey, PublicKeyPoP, Signature, SigningKey},
 };
