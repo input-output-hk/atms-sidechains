@@ -420,6 +420,9 @@ where
         let aggregate: Signature = unique_sigs
             .iter()
             .map(|&(pk, s)| {
+                if !registration.leaf_map.contains_key(&pk) {
+                    return Err(AtmsError::NonRegisteredParticipant);
+                }
                 s.verify(&pk, msg)?;
                 Ok(s)
             })

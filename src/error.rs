@@ -18,6 +18,10 @@ pub enum AtmsError {
     /// A key submitted contains an invalid PoP.
     #[error("Key with invalid PoP provided in the set of keys.")]
     InvalidPoP,
+    /// This error occurs when we try to aggregate a signature from a participant
+    /// that is not registered
+    #[error("Trying to aggregate key from non-registered participant")]
+    NonRegisteredParticipant,
     /// Duplicate non-signers in signature
     #[error("Submitted keys of non-signers contains duplicates.")]
     FoundDuplicates(PublicKey),
