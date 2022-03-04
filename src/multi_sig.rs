@@ -1,15 +1,14 @@
 use crate::error::{blst_err_to_atms, AtmsError};
-use blst::min_pk::{
-    AggregatePublicKey, AggregateSignature, PublicKey as BlstPk, SecretKey as BlstSk,
-    Signature as BlstSig,
-};
+use blst::min_pk::{AggregatePublicKey, AggregateSignature, PublicKey as BlstPk, SecretKey as BlstSk, Signature as BlstSig};
 use blst::BLST_ERROR;
 use rand_core::{CryptoRng, RngCore};
-use std::cmp::Ordering;
-use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
-use std::iter::Sum;
-use std::ops::Sub;
+use std::{
+    cmp::Ordering,
+    fmt::Debug,
+    hash::{Hash, Hasher},
+    iter::Sum,
+    ops::Sub,
+};
 
 /// Individual private key
 #[derive(Debug)]
@@ -46,6 +45,22 @@ impl SigningKey {
     pub fn sign(&self, msg: &[u8]) -> Signature {
         Signature(self.0.sign(msg, &[], &[]))
     }
+
+    /// Convert the secret key into byte string
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+
+    /// Convert a string of bytes into a `SigningKey`.
+    /// # Error
+    /// Fails if the byte string represents a scalar larger than the group order.
+    pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, AtmsError> {
+        match BlstSk::from_bytes(&bytes) {
+            Ok(sk) => Ok(Self(sk)),
+            Err(e) => Err(blst_err_to_atms(e)
+                .expect_err("If deserialisation is not successful, blst returns and error different to SUCCESS."))
+        }
+    }
 }
 
 impl PublicKeyPoP {
@@ -78,9 +93,20 @@ impl From<&SigningKey> for PublicKeyPoP {
 }
 
 impl PublicKey {
-    /// Convert an `AtmsPublicKey` to its compressed byte representation
+    /// Convert an `PublicKey` to its compressed byte representation
     pub fn to_bytes(&self) -> [u8; 48] {
         self.0.to_bytes()
+    }
+
+    /// Convert a compressed byte string into `PublicKey`.
+    /// # Error
+    /// This function fails if the bytes do not represent a compressed point of the curve.
+    pub fn from_bytes(bytes: [u8; 48]) -> Result<Self, AtmsError> {
+        match BlstPk::from_bytes(&bytes) {
+            Ok(pk) => Ok(Self(pk)),
+            Err(e) => Err(blst_err_to_atms(e)
+                .expect_err("If deserialisation is not successful, blst returns and error different to SUCCESS."))
+        }
     }
 
     fn cmp_msp_mvk(&self, other: &PublicKey) -> Ordering {
@@ -176,9 +202,20 @@ impl Signature {
         blst_err_to_atms(self.0.verify(false, msg, &[], &[], &pk.0, false))
     }
 
-    /// Convert an `AtmsSignature` to its compressed byte representation.
+    /// Convert an `Signature` to its compressed byte representation.
     pub fn to_bytes(&self) -> [u8; 96] {
         self.0.to_bytes()
+    }
+
+    /// Convert a string of bytes into a `Signature`.
+    /// # Error
+    /// Returns an error if the byte string does not represent a point in the curve.
+    pub fn from_bytes(bytes: [u8; 96]) -> Result<Self, AtmsError> {
+        match BlstSig::from_bytes(&bytes) {
+            Ok(sig) => Ok(Self(sig)),
+            Err(e) => Err(blst_err_to_atms(e)
+                .expect_err("If deserialisation is not successful, blst returns and error different to SUCCESS."))
+        }
     }
 
     fn cmp_msp_sig(&self, other: &Self) -> Ordering {
@@ -222,7 +259,7 @@ impl<'a> Sum<&'a Self> for Signature {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use blst::{blst_p1, blst_p1_cneg, blst_p1_add, blst_p1_add_affine, blst_p1_affine, blst_p1_deserialize, blst_p1_from_affine, blst_p1_serialize, blst_p2, blst_p2_add_affine, blst_p2_affine, blst_p2_deserialize, blst_p2_serialize};
+    use blst::{blst_p1, blst_p1_cneg, blst_p1_add, blst_p1_add_affine, blst_p1_affine, blst_p1_deserialize, blst_p1_from_affine, blst_p1_serialize, blst_p2, blst_p2_add_affine, blst_p2_affine, blst_p2_deserialize, blst_p2_serialize, blst_scalar, blst_scalar_from_bendian, blst_scalar_fr_check, blst_p1_uncompress, blst_p2_uncompress};
     use proptest::prelude::*;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
@@ -387,6 +424,59 @@ mod tests {
                 }
             }
             assert_eq!(result, pk_1.cmp(&pk_2));
+        }
+
+        #[test]
+        fn serde_sk(sk in any::<[u8;32]>()) {
+            let mut raw_scalar = blst_scalar::default();
+            unsafe {
+                match SigningKey::from_bytes(sk) {
+                    Ok(_) => {
+                        blst_scalar_from_bendian(&mut raw_scalar, &sk[0]);
+                        assert_eq!(blst_scalar_fr_check(&raw_scalar), true);
+                    }
+                    Err(_) => {
+                        blst_scalar_from_bendian(&mut raw_scalar, &sk[0]);
+                        assert_eq!(blst_scalar_fr_check(&raw_scalar), false);
+                    },
+                };
+            }
+        }
+
+        #[test]
+        fn serde_pk(seed in any::<[u8; 32]>()) {
+            let mut random_bytes = [0u8; 48];
+            ChaCha20Rng::from_seed(seed).fill_bytes(&mut random_bytes);
+            let mut raw_pk = blst_p1_affine::default();
+            unsafe{
+                match PublicKey::from_bytes(random_bytes) {
+                    Ok(_) => {
+                        assert_eq!(blst_p1_uncompress(&mut raw_pk, &random_bytes[0]), BLST_ERROR::BLST_SUCCESS);
+                    }
+                    Err(_) => {
+                        let error = blst_p1_uncompress(&mut raw_pk, &random_bytes[0]);
+                        assert!(error == BLST_ERROR::BLST_BAD_ENCODING || error == BLST_ERROR::BLST_POINT_NOT_ON_CURVE);
+                    },
+                };
+            }
+        }
+
+        #[test]
+        fn serde_sig(seed in any::<[u8; 32]>()) {
+            let mut random_bytes = [0u8; 96];
+            ChaCha20Rng::from_seed(seed).fill_bytes(&mut random_bytes);
+            let mut raw_sig = blst_p2_affine::default();
+            unsafe {
+                match Signature::from_bytes(random_bytes) {
+                    Ok(_) => {
+                        assert_eq!(blst_p2_uncompress(&mut raw_sig, &random_bytes[0]), BLST_ERROR::BLST_SUCCESS);
+                    }
+                    Err(_) => {
+                        let error = blst_p2_uncompress(&mut raw_sig, &random_bytes[0]);
+                        assert!(error == BLST_ERROR::BLST_BAD_ENCODING || error == BLST_ERROR::BLST_POINT_NOT_ON_CURVE);
+                    },
+                };
+            }
         }
     }
 }

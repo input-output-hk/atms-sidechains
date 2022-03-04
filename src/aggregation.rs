@@ -55,12 +55,16 @@
 
 #![allow(clippy::type_complexity)]
 
-use crate::error::{blst_err_to_atms, AtmsError};
-use crate::merkle_tree::{MTHashLeaf, MerkleTreeCommitment, Path};
-use crate::{MerkleTree, PublicKey, PublicKeyPoP, Signature};
+use crate::{
+    error::{blst_err_to_atms, AtmsError},
+    merkle_tree::{MTHashLeaf, MerkleTreeCommitment, Path},
+    {MerkleTree, PublicKey, PublicKeyPoP, Signature},
+};
 use blake2::Digest;
-use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+};
 
 /// An ATMS aggregate key, `Avk`, contains a merkle tree commitment, and the aggregated key
 #[derive(Debug)]

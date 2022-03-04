@@ -43,8 +43,7 @@ fn full_protocol() -> Result<(), AtmsError> {
     for &i in qualified_signers.iter() {
         signatures.push((PublicKey::from(&sks[i]), sks[i].sign(&msg_1)));
     }
-    let aggr_sig = AggregateSig::new(&atms_registration_1, &signatures[..], &msg_1)
-        .expect("Signatures should be valid.");
+    let aggr_sig = AggregateSig::new(&atms_registration_1, &signatures[..], &msg_1)?;
 
     assert!(aggr_sig.verify(&msg_1, &avk_1, threshold).is_ok());
 
@@ -71,8 +70,7 @@ fn full_protocol() -> Result<(), AtmsError> {
     for &i in qualified_signers.iter().take(4) {
         signatures.push((PublicKey::from(&sks[i]), sks[i].sign(&msg_2)));
     }
-    let aggr_sig = AggregateSig::new(&atms_registration_2, &signatures[..], &msg_2)
-        .expect("Signatures should be valid.");
+    let aggr_sig = AggregateSig::new(&atms_registration_2, &signatures[..], &msg_2)?;
 
     // aggregated signatures can be verified using the ATMs single key.
     assert!(aggr_sig.verify(&msg_2, &avk_2, threshold).is_err());
