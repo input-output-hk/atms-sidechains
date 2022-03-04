@@ -73,7 +73,7 @@ use std::ops::Sub;
 
 /// Individual private key
 #[derive(Debug)]
-pub struct PrivateKey(BlstSk);
+pub struct SigningKey(BlstSk);
 
 /// Individual public key
 #[derive(Clone, Copy, Debug)]
@@ -91,7 +91,7 @@ pub struct PublicKeyPoP(PublicKey, ProofOfPossession);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Signature(BlstSig);
 
-impl PrivateKey {
+impl SigningKey {
     /// Generate a new private key
     pub fn gen<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
         let mut ikm = [0u8; 32];
@@ -119,20 +119,20 @@ impl PublicKeyPoP {
     }
 }
 
-impl From<&PrivateKey> for PublicKey {
-    fn from(sk: &PrivateKey) -> Self {
+impl From<&SigningKey> for PublicKey {
+    fn from(sk: &SigningKey) -> Self {
         Self(sk.0.sk_to_pk())
     }
 }
 
-impl From<&PrivateKey> for ProofOfPossession {
-    fn from(sk: &PrivateKey) -> Self {
+impl From<&SigningKey> for ProofOfPossession {
+    fn from(sk: &SigningKey) -> Self {
         ProofOfPossession(sk.0.sign(b"PoP", &[], &[]))
     }
 }
 
-impl From<&PrivateKey> for PublicKeyPoP {
-    fn from(sk: &PrivateKey) -> Self {
+impl From<&SigningKey> for PublicKeyPoP {
+    fn from(sk: &SigningKey) -> Self {
         Self(PublicKey(sk.0.sk_to_pk()), sk.into())
     }
 }
@@ -293,6 +293,16 @@ where
     nr_parties: usize,
 }
 
+impl<H: MTHashLeaf + Digest> PartialEq for Avk<H> {
+    fn eq(&self, other: &Self) -> bool {
+        self.nr_parties == other.nr_parties
+            && self.mt_commitment.value == other.mt_commitment.value
+            && self.aggregate_key == other.aggregate_key
+    }
+}
+
+impl<H: MTHashLeaf + Digest> Eq for Avk<H> {}
+
 impl<H> Avk<H>
 where
     H: MTHashLeaf + Digest,
@@ -300,9 +310,7 @@ where
     /// Check that this aggregation is derived from the given sequence of valid keys.
     pub fn check(&self, keys: &[PublicKeyPoP]) -> Result<(), AtmsError> {
         let akey2: Registration<H> = Registration::new(keys)?;
-        if &self.mt_commitment.value == akey2.tree.root()
-            && self.aggregate_key == akey2.aggregate_key
-        {
+        if self == &akey2.to_avk() {
             return Ok(());
         }
         Err(AtmsError::InvalidAggregation)
@@ -384,9 +392,12 @@ where
     H: MTHashLeaf + Digest,
 {
     /// Aggregate a list of signatures.
-    // todo: we probably want to verify all signatures
     // todo: do we want to pass the pks as part of the sigs, or maybe just some indices?
-    pub fn new(registration: &Registration<H>, sigs: &[(PublicKey, Signature)]) -> Self {
+    pub fn new(
+        registration: &Registration<H>,
+        sigs: &[(PublicKey, Signature)],
+        msg: &[u8],
+    ) -> Result<Self, AtmsError> {
         let signers = sigs.iter().map(|(k, _)| k).collect::<HashSet<_>>();
         let keys_proofs = registration
             .leaf_map
@@ -406,11 +417,19 @@ where
         // make sure that we don't have duplicates.
         unique_sigs.dedup();
 
-        let aggregate: Signature = unique_sigs.iter().map(|(_, s)| s).sum();
-        Self {
+        let aggregate: Signature = unique_sigs
+            .iter()
+            .map(|&(pk, s)| {
+                s.verify(&pk, msg)?;
+                Ok(s)
+            })
+            .collect::<Result<Vec<Signature>, AtmsError>>()?
+            .iter()
+            .sum();
+        Ok(Self {
             aggregate,
             keys_proofs,
-        }
+        })
     }
 
     /// Verify that this aggregation is valid for the given collection of keys and message.
@@ -423,7 +442,11 @@ where
         // Check inclusion proofs
         // todo: best compress or serialize?
         for (non_signer, proof) in &self.keys_proofs {
-            if keys.mt_commitment.check(&non_signer.0.compress(), proof).is_ok() {
+            if keys
+                .mt_commitment
+                .check(&non_signer.0.compress(), proof)
+                .is_ok()
+            {
                 non_signing_size += 1;
                 // Check non-signers are distinct
                 if !unique_non_signers.insert(non_signer) {
@@ -455,6 +478,7 @@ mod tests {
     use super::*;
     use blake2::Blake2b;
     use proptest::prelude::*;
+    use rand::seq::SliceRandom;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;
 
@@ -466,7 +490,7 @@ mod tests {
             msg in prop::collection::vec(any::<u8>(), 1..128),
             seed in any::<[u8;32]>(),
         ) {
-            let sk = PrivateKey::gen(&mut ChaCha20Rng::from_seed(seed));
+            let sk = SigningKey::gen(&mut ChaCha20Rng::from_seed(seed));
             let pk = PublicKey::from(&sk);
             let sig = sk.sign(&msg);
             assert!(sig.verify(&pk, &msg).is_ok());
@@ -477,15 +501,24 @@ mod tests {
                             seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let sk = PrivateKey::gen(&mut rng);
+            let sk = SigningKey::gen(&mut rng);
             let pk = PublicKey::from(&sk);
+            let sig = sk.sign(&msg);
 
-            let invalid_sk = PrivateKey::gen(&mut rng);
+            let invalid_sk = SigningKey::gen(&mut rng);
             let invalid_sig = invalid_sk.sign(&msg);
             assert_eq!(
-                invalid_sig.verify(&pk, &msg).expect_err("Expecting invalid sig."),
+                invalid_sig.verify(&pk, &msg).unwrap_err(),
                 AtmsError::InvalidSignature
             );
+
+            assert_eq!(
+                sig.verify(
+                    &pk,
+                    b"We are just going to take a message long enough to make sure that \
+                    the test is never going to fall in it. Therefore, the test should fail."
+                    ).unwrap_err(),
+                AtmsError::InvalidSignature)
         }
 
         #[test]
@@ -497,7 +530,7 @@ mod tests {
             let mut pkpops = Vec::new();
             let mut sigs = Vec::new();
             for _ in 0..num_sigs {
-                let sk = PrivateKey::gen(&mut rng);
+                let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
                 let pkpop = PublicKeyPoP::from(&sk);
                 let sig = sk.sign(&msg);
@@ -506,7 +539,30 @@ mod tests {
                 pkpops.push(pkpop);
             }
             let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
-            let mu = AggregateSig::new(&registration, &sigs);
+            let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
+            assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
+        }
+
+        #[test]
+        fn test_aggregate_shuffled_sig(msg in prop::collection::vec(any::<u8>(), 1..128),
+                              num_sigs in 1..16usize,
+                              seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut pkpops = Vec::new();
+            let mut sigs = Vec::new();
+            for _ in 0..num_sigs {
+                let sk = SigningKey::gen(&mut rng);
+                let pk = PublicKey::from(&sk);
+                let pkpop = PublicKeyPoP::from(&sk);
+                let sig = sk.sign(&msg);
+                assert!(sig.verify(&pk, &msg).is_ok());
+                sigs.push((pk, sig));
+                pkpops.push(pkpop);
+            }
+            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+            sigs.shuffle(&mut rng);
+            let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
             assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
         }
 
@@ -520,7 +576,7 @@ mod tests {
             let mut sks = Vec::new();
             let mut pks = Vec::new();
             for _ in 0..num_pks {
-                let sk = PrivateKey::gen(&mut rng);
+                let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
                 sks.push(sk);
                 pks.push(pk);
@@ -541,6 +597,7 @@ mod tests {
             assert!(aggr_sig.verify(&aggr_pk, &msg).is_ok());
         }
 
+        #[test]
         fn test_correct_avk(num_pks in 1..16,
                               seed in any::<[u8;32]>(),
         ) {
@@ -548,14 +605,35 @@ mod tests {
             let mut sks = Vec::new();
             let mut pks = Vec::new();
             for _ in 0..num_pks {
-                let sk = PrivateKey::gen(&mut rng);
+                let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKeyPoP::from(&sk);
                 sks.push(sk);
                 pks.push(pk);
             }
 
             let registration = Registration::<Blake2b>::new(&pks).expect("Valid keys should have a valid registration.");
-            assert!(registration.to_avk().check(&pks).is_ok())
+            assert!(registration.to_avk().check(&pks).is_ok());
+        }
+
+        #[test]
+        fn shuffle_keys_same_avk(num_pks in 1..16,
+                              seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut sks = Vec::new();
+            let mut pks = Vec::new();
+            for _ in 0..num_pks {
+                let sk = SigningKey::gen(&mut rng);
+                let pk = PublicKeyPoP::from(&sk);
+                sks.push(sk);
+                pks.push(pk);
+            }
+
+            let registration = Registration::<Blake2b>::new(&pks).expect("Valid keys should have a valid registration.");
+            pks.shuffle(&mut rng);
+            let shuffled_reg = Registration::<Blake2b>::new(&pks).expect("Shufled keys should have a correct registration.");
+            assert_eq!(registration.to_avk(), shuffled_reg.to_avk());
+            assert!(registration.to_avk().check(&pks).is_ok());
         }
 
         // todo: check whether we can use bool with proptest.
@@ -569,7 +647,7 @@ mod tests {
 
             let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
             for _ in 1..=n {
-                let sk = PrivateKey::gen(&mut rng);
+                let sk = SigningKey::gen(&mut rng);
                 let pkpop = PublicKeyPoP::from(&sk);
                 keyspop.push(pkpop);
             }
@@ -579,7 +657,7 @@ mod tests {
             }
 
             if invalid_pop == 1 {
-                let sk = PrivateKey::gen(&mut rng);
+                let sk = SigningKey::gen(&mut rng);
                 let false_pkpop = PublicKeyPoP::from(&sk);
                 keyspop[0] = false_pkpop;
             }
@@ -616,7 +694,7 @@ mod tests {
             let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
             let mut signatures: Vec<(PublicKey, Signature)> = Vec::new();
             for _ in 1..=n {
-                let sk = PrivateKey::gen(&mut rng);
+                let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
                 let pkpop = PublicKeyPoP::from(&sk);
                 let sig = sk.sign(&msg);
@@ -637,10 +715,10 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
 
-            let mut aggr_sig = AggregateSig::new(&atms_registration, &subset);
+            let mut aggr_sig = AggregateSig::new(&atms_registration, &subset, &msg).expect("Signatures should be valid");
 
             let false_susbset: [(PublicKey, Signature); 1] = [signatures[false_mk_proof % n]];
-            let false_aggr = AggregateSig::new(&atms_registration, &false_susbset);
+            let false_aggr = AggregateSig::new(&atms_registration, &false_susbset, &msg).expect("Signatures should be valid");
             if aggr_sig.keys_proofs.len() != 0 {
                 aggr_sig.keys_proofs[0].1 = false_aggr.keys_proofs[0].1.clone();
             } else if aggr_sig.keys_proofs.len() > 1 && repeate_non_signer == 1 {
@@ -669,13 +747,11 @@ mod tests {
                 Err(err) => unreachable!("{:?}", err)
             }
         }
-    }
-
-    #[test]
-    fn test_gen() {
-        let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
-        for _ in 0..128 {
-            let sk = PrivateKey::gen(&mut rng);
+        #[test]
+        fn test_gen(seed in any::<[u8; 32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let sk = SigningKey::gen(&mut rng);
             let pkpop = PublicKeyPoP::from(&sk);
 
             assert!(pkpop.verify().is_ok());

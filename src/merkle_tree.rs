@@ -24,8 +24,8 @@
 //! assert!(mt.to_commitment().check(&keys[3], &path).is_ok());
 //!
 //! # }
-use std::fmt::Debug;
 use crate::error::MerkleTreeError;
+use std::fmt::Debug;
 
 /// Path of hashes from root to leaf in a Merkle Tree. Contains all hashes on the path, and the index
 /// of the leaf.

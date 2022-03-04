@@ -21,4 +21,4 @@ cbindgen    = "0.7.1"
 [dev-dependencies]
 proptest    = "1.0.0"
 rand_chacha = "0.3.1"
-rand = "0.7"
+rand = "0.8"

@@ -53,5 +53,5 @@ pub(crate) fn blst_err_to_atms(e: BLST_ERROR) -> Result<(), AtmsError> {
 pub enum MerkleTreeError {
     /// This error occurs when the claimed path is invalid.
     #[error("Invalid merkle path")]
-    InvalidPath
+    InvalidPath,
 }

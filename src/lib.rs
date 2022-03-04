@@ -7,13 +7,9 @@ mod merkle_tree;
 
 pub use crate::{
     atms::{
-        AggregateSig, PrivateKey, ProofOfPossession, PublicKey, PublicKeyPoP, Registration,
-        Signature,
+        AggregateSig, ProofOfPossession, PublicKey, PublicKeyPoP, Registration, Signature,
+        SigningKey,
     },
+    error::AtmsError,
     merkle_tree::MerkleTree,
 };
-
-#[test]
-fn hallo() {
-    assert!(true);
-}
