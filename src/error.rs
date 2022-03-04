@@ -48,3 +48,10 @@ pub(crate) fn blst_err_to_atms(e: BLST_ERROR) -> Result<(), AtmsError> {
         _ => Err(AtmsError::SerializationError),
     }
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum MerkleTreeError {
+    /// This error occurs when the claimed path is invalid.
+    #[error("Invalid merkle path")]
+    InvalidPath
+}

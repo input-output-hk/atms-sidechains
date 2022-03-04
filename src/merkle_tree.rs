@@ -21,10 +21,11 @@
 //! }
 //! let mt = MerkleTree::<H>::create(&keys);
 //! let path = mt.get_path(3);
-//! assert!(mt.to_commitment().check(&keys[3], &path));
+//! assert!(mt.to_commitment().check(&keys[3], &path).is_ok());
 //!
 //! # }
 use std::fmt::Debug;
+use crate::error::MerkleTreeError;
 
 /// Path of hashes from root to leaf in a Merkle Tree. Contains all hashes on the path, and the index
 /// of the leaf.
@@ -79,7 +80,7 @@ where
     H: MTHashLeaf,
 {
     /// Check an inclusion proof that `val` is part of the tree.
-    pub fn check(&self, val: &[u8], proof: &Path<H::F>) -> bool {
+    pub fn check(&self, val: &[u8], proof: &Path<H::F>) -> Result<(), MerkleTreeError> {
         let mut idx = proof.1;
 
         let mut hasher = H::new();
@@ -93,7 +94,10 @@ where
             idx >>= 1;
         }
 
-        h == self.value
+        if h == self.value {
+            return Ok(());
+        }
+        Err(MerkleTreeError::InvalidPath)
     }
 }
 
@@ -289,7 +293,7 @@ mod tests {
         fn test_create_proof((t, values) in arb_tree(30)) {
             values.iter().enumerate().for_each(|(i, _v)| {
                 let pf = t.get_path(i);
-                assert!(t.to_commitment().check(&values[i], &pf));
+                assert!(t.to_commitment().check(&values[i], &pf).is_ok());
             })
         }
     }
@@ -321,7 +325,7 @@ mod tests {
                             .iter()
                             .map(|x| hasher.inject(x))
                             .collect(), idx);
-            assert!(!t.to_commitment().check(&values[0], &path));
+            assert!(t.to_commitment().check(&values[0], &path).is_err());
         }
     }
 }

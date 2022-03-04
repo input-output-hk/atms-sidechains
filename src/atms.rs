@@ -423,7 +423,7 @@ where
         // Check inclusion proofs
         // todo: best compress or serialize?
         for (non_signer, proof) in &self.keys_proofs {
-            if keys.mt_commitment.check(&non_signer.0.compress(), proof) {
+            if keys.mt_commitment.check(&non_signer.0.compress(), proof).is_ok() {
                 non_signing_size += 1;
                 // Check non-signers are distinct
                 if !unique_non_signers.insert(non_signer) {
