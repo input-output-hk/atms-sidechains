@@ -58,4 +58,8 @@ pub enum MerkleTreeError {
     /// This error occurs when the claimed path is invalid.
     #[error("Invalid merkle path")]
     InvalidPath,
+    /// This error occurs when the bytes provided to convert into a merkle tree
+    /// have invalid size.
+    #[error("Invalid sized bytes.")]
+    InvalidSizedBytes
 }

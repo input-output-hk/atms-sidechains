@@ -1,0 +1,6 @@
+language = "C"
+
+documentation = true
+
+[parse.expand]
+crates = ["atms"]
