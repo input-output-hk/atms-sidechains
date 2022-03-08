@@ -57,10 +57,11 @@
 
 use crate::{
     error::{blst_err_to_atms, AtmsError},
-    merkle_tree::{MTHashLeaf, MerkleTreeCommitment, Path},
+    merkle_tree::{MerkleTreeCommitment, Path},
     {MerkleTree, PublicKey, PublicKeyPoP, Signature},
 };
 use blake2::Digest;
+use digest::FixedOutput;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -70,7 +71,7 @@ use std::{
 #[derive(Debug)]
 pub struct Avk<H>
 where
-    H: MTHashLeaf + Digest,
+    H: Digest,
 {
     /// The product of aggregated keys
     aggregate_key: PublicKey,
@@ -80,7 +81,7 @@ where
     nr_parties: usize,
 }
 
-impl<H: MTHashLeaf + Digest> PartialEq for Avk<H> {
+impl<H: Digest> PartialEq for Avk<H> {
     fn eq(&self, other: &Self) -> bool {
         self.nr_parties == other.nr_parties
             && self.mt_commitment.value == other.mt_commitment.value
@@ -88,11 +89,11 @@ impl<H: MTHashLeaf + Digest> PartialEq for Avk<H> {
     }
 }
 
-impl<H: MTHashLeaf + Digest> Eq for Avk<H> {}
+impl<H: Digest> Eq for Avk<H> {}
 
 impl<H> Avk<H>
 where
-    H: MTHashLeaf + Digest,
+    H: Digest + FixedOutput,
 {
     /// Check that this aggregation is derived from the given sequence of valid keys.
     pub fn check(&self, keys: &[PublicKeyPoP]) -> Result<(), AtmsError> {
@@ -108,7 +109,7 @@ where
 #[derive(Debug)]
 pub struct Registration<H>
 where
-    H: MTHashLeaf + Digest,
+    H: Digest + FixedOutput,
 {
     /// The product of the aggregated keys
     aggregate_key: PublicKey,
@@ -119,20 +120,22 @@ where
 }
 
 /// An Aggregated Signature
+///
+/// Testing for docs
 #[derive(Debug)]
 pub struct AggregateSig<H>
 where
-    H: MTHashLeaf + Digest,
+    H: Digest + FixedOutput,
 {
     /// The product of the aggregated signatures
     aggregate: Signature,
     /// Proofs of membership of non-signing keys
-    pub keys_proofs: Vec<(PublicKey, Path<H::F>)>,
+    pub keys_proofs: Vec<(PublicKey, Path<H>)>,
 }
 
 impl<H> Registration<H>
 where
-    H: MTHashLeaf + Digest,
+    H: Digest + FixedOutput,
 {
     /// Aggregate a set of keys, and commit to them in a canonical order.
     pub fn new(keys_pop: &[PublicKeyPoP]) -> Result<Self, AtmsError> {
@@ -176,7 +179,7 @@ where
 
 impl<H> AggregateSig<H>
 where
-    H: MTHashLeaf + Digest,
+    H: Digest + FixedOutput,
 {
     /// Aggregate a list of signatures.
     // todo: do we want to pass the pks as part of the sigs, or maybe just some indices?
@@ -261,12 +264,46 @@ where
                 .verify(false, msg, &[], &[], &final_key.0, false),
         )
     }
+
+    /// Convert to a byte string.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        // todo: lets do with_capacity here
+        let mut aggregate_sig_bytes = Vec::new();
+        aggregate_sig_bytes.extend_from_slice(&self.keys_proofs.len().to_be_bytes());
+        aggregate_sig_bytes.extend_from_slice(&self.aggregate.to_bytes());
+        for (keys, proofs) in &self.keys_proofs {
+            aggregate_sig_bytes.extend_from_slice(&keys.to_bytes());
+            aggregate_sig_bytes.extend_from_slice(&proofs.to_bytes())
+        }
+        aggregate_sig_bytes
+    }
+
+    // /// Deserialise a byte string to an `AggregateSig`.
+    // pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
+    //     let mut size_bytes = [0u8; 8];
+    //     size_bytes.copy_from_slice(&bytes[..8]);
+    //     // todo: properly handle this
+    //     let size = u64::from_be_bytes(size_bytes) as usize;
+    //     let mut aggr_sig_bytes = [0u8; 96];
+    //     aggr_sig_bytes.copy_from_slice(&bytes[8..104]);
+    //     let aggr_sig = Signature::from_bytes(aggr_sig_bytes)?;
+    //     let vec: Vec<(PublicKey, Path<H>)> = Vec::with_capacity(size);
+    //     let mut consumable_bytes = bytes[104..];
+    //     Signature::from
+    //
+    //     let pop = match BlstSig::from_bytes(&bytes[48..]) {
+    //         Ok(proof) => ProofOfPossession(proof),
+    //         Err(e) => blst_err_to_atms(e).expect_err("If it passed, it should return Ok().")
+    //     };
+    //
+    //     Ok(Self(pk, pop))
+    // }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{PublicKey, PublicKeyPoP, SigningKey, Signature};
+    use crate::{PublicKey, PublicKeyPoP, Signature, SigningKey};
     use blake2::Blake2b;
     use proptest::prelude::*;
     use rand::seq::SliceRandom;

@@ -1,5 +1,8 @@
 use crate::error::{blst_err_to_atms, AtmsError};
-use blst::min_pk::{AggregatePublicKey, AggregateSignature, PublicKey as BlstPk, SecretKey as BlstSk, Signature as BlstSig};
+use blst::min_pk::{
+    AggregatePublicKey, AggregateSignature, PublicKey as BlstPk, SecretKey as BlstSk,
+    Signature as BlstSig,
+};
 use blst::BLST_ERROR;
 use rand_core::{CryptoRng, RngCore};
 use std::{
@@ -71,6 +74,33 @@ impl PublicKeyPoP {
             return Ok(self.0);
         }
         Err(AtmsError::InvalidPoP)
+    }
+
+    /// Convert to a byte string.
+    pub fn to_bytes(&self) -> [u8; 144] {
+        let mut pkpop_bytes = [0u8; 144];
+        pkpop_bytes[..48].copy_from_slice(&self.0.to_bytes());
+        pkpop_bytes[48..].copy_from_slice(&self.1 .0.to_bytes());
+        pkpop_bytes
+    }
+
+    /// Deserialise a byte string to a `PublicKeyPoP`.
+    pub fn from_bytes(bytes: &[u8; 144]) -> Result<Self, AtmsError> {
+        let pk = match BlstPk::from_bytes(&bytes[..48]) {
+            Ok(key) => PublicKey(key),
+            Err(e) => {
+                return Err(blst_err_to_atms(e).expect_err("If it passed, it should return Ok()."))
+            }
+        };
+
+        let pop = match BlstSig::from_bytes(&bytes[48..]) {
+            Ok(proof) => ProofOfPossession(proof),
+            Err(e) => {
+                return Err(blst_err_to_atms(e).expect_err("If it passed, it should return Ok()."))
+            }
+        };
+
+        Ok(Self(pk, pop))
     }
 }
 
@@ -259,7 +289,12 @@ impl<'a> Sum<&'a Self> for Signature {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use blst::{blst_p1, blst_p1_cneg, blst_p1_add, blst_p1_add_affine, blst_p1_affine, blst_p1_deserialize, blst_p1_from_affine, blst_p1_serialize, blst_p2, blst_p2_add_affine, blst_p2_affine, blst_p2_deserialize, blst_p2_serialize, blst_scalar, blst_scalar_from_bendian, blst_scalar_fr_check, blst_p1_uncompress, blst_p2_uncompress};
+    use blst::{
+        blst_p1, blst_p1_add, blst_p1_add_affine, blst_p1_affine, blst_p1_cneg,
+        blst_p1_deserialize, blst_p1_from_affine, blst_p1_serialize, blst_p1_uncompress, blst_p2,
+        blst_p2_add_affine, blst_p2_affine, blst_p2_deserialize, blst_p2_serialize,
+        blst_p2_uncompress, blst_scalar, blst_scalar_fr_check, blst_scalar_from_bendian,
+    };
     use proptest::prelude::*;
     use rand_chacha::ChaCha20Rng;
     use rand_core::SeedableRng;

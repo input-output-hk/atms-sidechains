@@ -1,4 +1,4 @@
-use atms_blst::{AggregateSig, AtmsError, PublicKey, PublicKeyPoP, Registration, SigningKey};
+use atms::{AggregateSig, AtmsError, PublicKey, PublicKeyPoP, Registration, SigningKey};
 use blake2::Blake2b;
 use rand::prelude::IteratorRandom;
 use rand_chacha::ChaCha20Rng;

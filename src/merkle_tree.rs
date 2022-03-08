@@ -21,11 +21,10 @@
 //!
 //! # }
 use crate::error::MerkleTreeError;
+use digest::{Digest, FixedOutput};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use blake2::Blake2b;
-use digest::{Digest, FixedOutput, Update};
-use serde::{Serialize, Deserialize};
 
 /// Path of hashes from root to leaf in a Merkle Tree. Contains all hashes on the path, and the index
 /// of the leaf.
@@ -74,16 +73,14 @@ impl<D: Digest + FixedOutput> Path<D> {
 
 /// Tree of hashes, providing a commitment of data and its ordering.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MerkleTreeCommitment<D: Digest>
-{
+pub struct MerkleTreeCommitment<D: Digest> {
     /// Root of the merkle tree, representing the commitment of all its leaves.
     pub value: Vec<u8>,
     /// Phantom type to link commitment to its hasher
-    hasher: PhantomData<D>
+    hasher: PhantomData<D>,
 }
 
-impl<D: Digest + FixedOutput> MerkleTreeCommitment<D>
-{
+impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     /// Check an inclusion proof that `val` is part of the tree.
     pub fn check(&self, val: &[u8], proof: &Path<D>) -> Result<(), MerkleTreeError> {
         let mut idx = proof.index;
@@ -92,17 +89,9 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D>
         h[..val.len()].copy_from_slice(val);
         for p in &proof.values {
             if (idx & 0b1) == 0 {
-                h = D::new()
-                    .chain(h)
-                    .chain(p)
-                    .finalize()
-                    .to_vec();
+                h = D::new().chain(h).chain(p).finalize().to_vec();
             } else {
-                h = D::new()
-                    .chain(p)
-                    .chain(h)
-                    .finalize()
-                    .to_vec();
+                h = D::new().chain(p).chain(h).finalize().to_vec();
             }
             idx >>= 1;
         }
@@ -116,8 +105,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D>
 
 /// Tree of hashes, providing a commitment of data and its ordering.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MerkleTree<D: Digest + FixedOutput>
-{
+pub struct MerkleTree<D: Digest + FixedOutput> {
     /// The nodes are stored in an array heap:
     /// nodes[0] is the root,
     /// the parent of nodes[i] is nodes[(i-1)/2]
@@ -132,11 +120,10 @@ pub struct MerkleTree<D: Digest + FixedOutput>
     /// Number of leaves cached here
     n: usize,
     /// Phantom type to link the tree with its hasher
-    hasher: PhantomData<D>
+    hasher: PhantomData<D>,
 }
 
-impl<D: Digest + FixedOutput> MerkleTree<D>
-{
+impl<D: Digest + FixedOutput> MerkleTree<D> {
     /// Provide a non-empty list of leaves, `create` generate its corresponding `MerkleTree`.
     pub fn create(leaves: &[Vec<u8>]) -> MerkleTree<D> {
         let n = leaves.len();
@@ -162,18 +149,14 @@ impl<D: Digest + FixedOutput> MerkleTree<D>
             } else {
                 left.clone()
             };
-            nodes[i] = D::new()
-                .chain(left)
-                .chain(right)
-                .finalize()
-                .to_vec();
+            nodes[i] = D::new().chain(left).chain(right).finalize().to_vec();
         }
 
         Self {
             nodes,
             n,
             leaf_off: num_nodes - n,
-            hasher: PhantomData::default()
+            hasher: PhantomData::default(),
         }
     }
 
@@ -181,7 +164,7 @@ impl<D: Digest + FixedOutput> MerkleTree<D>
     pub fn to_commitment(&self) -> MerkleTreeCommitment<D> {
         MerkleTreeCommitment {
             value: self.nodes[0].clone(),
-            hasher: self.hasher
+            hasher: self.hasher,
         }
     }
 
@@ -213,10 +196,10 @@ impl<D: Digest + FixedOutput> MerkleTree<D>
             idx = parent(idx);
         }
 
-        Path{
+        Path {
             values: proof,
             index: i,
-            hasher: Default::default()
+            hasher: Default::default(),
         }
     }
 
