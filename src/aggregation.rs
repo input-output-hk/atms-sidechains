@@ -103,6 +103,34 @@ where
         }
         Err(AtmsError::InvalidAggregation)
     }
+
+    /// Convert `Avk` to byte string.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut result = Vec::new();
+        result.extend_from_slice(&self.aggregate_key.to_bytes());
+        result.extend_from_slice(&self.nr_parties.to_be_bytes());
+        result.extend_from_slice(&self.mt_commitment.to_bytes());
+        result
+    }
+
+    /// Try to convert a byte string to an `Avk`.
+    // todo: again, handle these conversions to usize..
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
+        let mut pk_bytes = [0u8; 48];
+        let mut nr_bytes = [0u8; 8];
+
+        pk_bytes.copy_from_slice(&bytes[..48]);
+        nr_bytes.copy_from_slice(&bytes[48..56]);
+
+        let aggregate_key = PublicKey::from_bytes(pk_bytes)?;
+        let nr_parties = usize::from_be_bytes(nr_bytes);
+        let mt_commitment = MerkleTreeCommitment::from_bytes(&bytes[56..])?;
+        Ok(Self {
+            aggregate_key,
+            mt_commitment,
+            nr_parties,
+        })
+    }
 }
 
 /// An ATMS registration
@@ -174,6 +202,55 @@ where
             mt_commitment: self.tree.to_commitment(),
             nr_parties: self.leaf_map.len(),
         }
+    }
+
+    /// Convert a registration into a byte array
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut result = Vec::new();
+        result.extend_from_slice(&self.aggregate_key.to_bytes());
+        result.extend_from_slice(&self.leaf_map.len().to_be_bytes());
+        for (pk, index) in &self.leaf_map {
+            result.extend_from_slice(&pk.to_bytes());
+            result.extend_from_slice(&index.to_be_bytes());
+        }
+        result.extend_from_slice(&self.tree.to_bytes());
+
+        result
+    }
+
+    /// Try to convert a byte array into an ATMS `Registration`
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
+        let mut pk_bytes = [0u8; 48];
+        pk_bytes.copy_from_slice(&bytes[..48]);
+        let aggregate_key = PublicKey::from_bytes(pk_bytes)?;
+        let mut len_bytes = [0u8; 8];
+        len_bytes.copy_from_slice(&bytes[48..56]);
+        let nr_parties = u64::from_be_bytes(len_bytes) as usize;
+        let hm_element_size = 48 + 8; // pk size + u64 size
+        let hm_offset = 56;
+        let mut leaf_map = HashMap::new();
+        for i in 0..nr_parties {
+            let mut pk_bytes = [0u8; 48];
+            let mut idx_bytes = [0u8; 8];
+            pk_bytes.copy_from_slice(
+                &bytes[hm_offset + hm_element_size * i..hm_offset + hm_element_size * i + 48],
+            );
+            idx_bytes.copy_from_slice(
+                &bytes[hm_offset + hm_element_size * i + 48..hm_offset + hm_element_size * i + 56],
+            );
+            leaf_map.insert(
+                PublicKey::from_bytes(pk_bytes)?,
+                usize::from_be_bytes(idx_bytes),
+            );
+        }
+
+        let mt_offset = hm_offset + hm_element_size * nr_parties;
+        let tree = MerkleTree::from_bytes(&bytes[mt_offset..])?;
+        Ok(Self {
+            aggregate_key,
+            tree,
+            leaf_map,
+        })
     }
 }
 
@@ -269,35 +346,55 @@ where
     pub fn to_bytes(&self) -> Vec<u8> {
         // todo: lets do with_capacity here
         let mut aggregate_sig_bytes = Vec::new();
-        aggregate_sig_bytes.extend_from_slice(&self.keys_proofs.len().to_be_bytes());
+        let nr_non_signers = self.keys_proofs.len();
+        aggregate_sig_bytes.extend_from_slice(&nr_non_signers.to_be_bytes());
+        if nr_non_signers > 0 {
+            aggregate_sig_bytes
+                .extend_from_slice(&self.keys_proofs[0].1.values.len().to_be_bytes());
+        }
         aggregate_sig_bytes.extend_from_slice(&self.aggregate.to_bytes());
-        for (keys, proofs) in &self.keys_proofs {
-            aggregate_sig_bytes.extend_from_slice(&keys.to_bytes());
-            aggregate_sig_bytes.extend_from_slice(&proofs.to_bytes())
+        for (key, proof) in &self.keys_proofs {
+            aggregate_sig_bytes.extend_from_slice(&key.to_bytes());
+            aggregate_sig_bytes.extend_from_slice(&proof.to_bytes())
         }
         aggregate_sig_bytes
     }
 
-    // /// Deserialise a byte string to an `AggregateSig`.
-    // pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
-    //     let mut size_bytes = [0u8; 8];
-    //     size_bytes.copy_from_slice(&bytes[..8]);
-    //     // todo: properly handle this
-    //     let size = u64::from_be_bytes(size_bytes) as usize;
-    //     let mut aggr_sig_bytes = [0u8; 96];
-    //     aggr_sig_bytes.copy_from_slice(&bytes[8..104]);
-    //     let aggr_sig = Signature::from_bytes(aggr_sig_bytes)?;
-    //     let vec: Vec<(PublicKey, Path<H>)> = Vec::with_capacity(size);
-    //     let mut consumable_bytes = bytes[104..];
-    //     Signature::from
-    //
-    //     let pop = match BlstSig::from_bytes(&bytes[48..]) {
-    //         Ok(proof) => ProofOfPossession(proof),
-    //         Err(e) => blst_err_to_atms(e).expect_err("If it passed, it should return Ok().")
-    //     };
-    //
-    //     Ok(Self(pk, pop))
-    // }
+    /// Deserialise a byte string to an `AggregateSig`.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
+        let mut u64_bytes = [0u8; 8];
+        u64_bytes.copy_from_slice(&bytes[..8]);
+        // todo: properly handle this
+        let size = u64::from_be_bytes(u64_bytes) as usize;
+        let mut offset = 8;
+        let mut size_proofs = 0;
+        if size > 0 {
+            offset += 8;
+            u64_bytes.copy_from_slice(&bytes[8..16]);
+            // todo: properly handle this
+            size_proofs = u64::from_be_bytes(u64_bytes) as usize;
+        }
+        let mut aggr_sig_bytes = [0u8; 96];
+        aggr_sig_bytes.copy_from_slice(&bytes[offset..96 + offset]);
+        let aggregate = Signature::from_bytes(aggr_sig_bytes)?;
+        let mut keys_proofs: Vec<(PublicKey, Path<H>)> = Vec::with_capacity(size);
+
+        let pk_n_proof_size = 48 + H::output_size() * size_proofs + 16; // plus 16 for the index and depth
+        for i in 0..size {
+            let pk_offset = 112 + i * pk_n_proof_size;
+            let proof_offset = pk_offset + 48;
+            let mut pk_bytes = [0u8; 48];
+            pk_bytes.copy_from_slice(&bytes[pk_offset..proof_offset]);
+            let pk = PublicKey::from_bytes(pk_bytes)?;
+            let proof = Path::from_bytes(&bytes[proof_offset..])?;
+            keys_proofs.push((pk, proof));
+        }
+
+        Ok(Self {
+            aggregate,
+            keys_proofs,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -336,6 +433,30 @@ mod tests {
         }
 
         #[test]
+        fn test_aggregate_sig_serde(msg in prop::collection::vec(any::<u8>(), 1..128),
+                              num_sigs in 1..16usize,
+                              seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut pkpops = Vec::new();
+            let mut sigs = Vec::new();
+            for _ in 0..num_sigs {
+                let sk = SigningKey::gen(&mut rng);
+                let pk = PublicKey::from(&sk);
+                let pkpop = PublicKeyPoP::from(&sk);
+                let sig = sk.sign(&msg);
+                assert!(sig.verify(&pk, &msg).is_ok());
+                sigs.push((pk, sig));
+                pkpops.push(pkpop);
+            }
+            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+            let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
+            let bytes = mu.to_bytes();
+            let recovered = AggregateSig::<Blake2b>::from_bytes(&bytes).unwrap();
+            assert!(recovered.verify(&msg, &registration.to_avk(), 0).is_ok());
+        }
+
+        #[test]
         fn test_aggregate_shuffled_sig(msg in prop::collection::vec(any::<u8>(), 1..128),
                               num_sigs in 1..16usize,
                               seed in any::<[u8;32]>(),
@@ -357,6 +478,24 @@ mod tests {
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
             assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
         }
+
+        #[test]
+        fn test_registration_serde(num_sigs in 1..16usize,
+                              seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut pkpops = Vec::new();
+            for _ in 0..num_sigs {
+                let sk = SigningKey::gen(&mut rng);
+                let pkpop = PublicKeyPoP::from(&sk);
+                pkpops.push(pkpop);
+            }
+            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+            let bytes = registration.to_bytes();
+            let test = Registration::<Blake2b>::from_bytes(&bytes).unwrap();
+            assert!(test.to_avk().check(&pkpops).is_ok());
+        }
+
 
         #[test]
         fn test_deaggregate_pks(msg in prop::collection::vec(any::<u8>(), 1..128),
@@ -405,6 +544,26 @@ mod tests {
 
             let registration = Registration::<Blake2b>::new(&pks).expect("Valid keys should have a valid registration.");
             assert!(registration.to_avk().check(&pks).is_ok());
+        }
+
+        #[test]
+        fn test_avk_serde(num_pks in 1..16,
+                              seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut sks = Vec::new();
+            let mut pks = Vec::new();
+            for _ in 0..num_pks {
+                let sk = SigningKey::gen(&mut rng);
+                let pk = PublicKeyPoP::from(&sk);
+                sks.push(sk);
+                pks.push(pk);
+            }
+
+            let avk = Registration::<Blake2b>::new(&pks).expect("Valid keys should have a valid registration.").to_avk();
+            let bytes = avk.to_bytes();
+            let test = Avk::<Blake2b>::from_bytes(&bytes).unwrap();
+            assert!(test.check(&pks).is_ok());
         }
 
         #[test]

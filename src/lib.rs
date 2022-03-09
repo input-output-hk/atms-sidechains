@@ -9,6 +9,6 @@ mod multi_sig;
 pub use crate::{
     aggregation::{AggregateSig, Registration},
     error::AtmsError,
-    merkle_tree::MerkleTree,
+    merkle_tree::{MerkleTree, Path},
     multi_sig::{ProofOfPossession, PublicKey, PublicKeyPoP, Signature, SigningKey},
 };

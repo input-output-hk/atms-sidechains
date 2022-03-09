@@ -63,3 +63,9 @@ pub enum MerkleTreeError {
     #[error("Invalid sized bytes.")]
     InvalidSizedBytes,
 }
+
+impl From<MerkleTreeError> for AtmsError {
+    fn from(_: MerkleTreeError) -> Self {
+        AtmsError::SerializationError
+    }
+}

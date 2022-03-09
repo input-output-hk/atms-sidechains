@@ -21,7 +21,7 @@ pub struct SigningKey(BlstSk);
 #[derive(Clone, Copy, Debug)]
 pub struct PublicKey(pub(crate) BlstPk);
 
-/// Proof of possession, proving the correctness of a public key
+/// Proof of possession, proving the correctness of a purblic key
 #[derive(Clone, Copy, Debug)]
 pub struct ProofOfPossession(BlstSig);
 
