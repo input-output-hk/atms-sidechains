@@ -116,13 +116,10 @@ where
     /// Try to convert a byte string to an `Avk`.
     // todo: again, handle these conversions to usize..
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
-        let mut pk_bytes = [0u8; 48];
         let mut nr_bytes = [0u8; 8];
-
-        pk_bytes.copy_from_slice(&bytes[..48]);
         nr_bytes.copy_from_slice(&bytes[48..56]);
 
-        let aggregate_key = PublicKey::from_bytes(pk_bytes)?;
+        let aggregate_key = PublicKey::from_bytes(bytes)?;
         let nr_parties = usize::from_be_bytes(nr_bytes);
         let mt_commitment = MerkleTreeCommitment::from_bytes(&bytes[56..])?;
         Ok(Self {
@@ -220,9 +217,7 @@ where
 
     /// Try to convert a byte array into an ATMS `Registration`
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
-        let mut pk_bytes = [0u8; 48];
-        pk_bytes.copy_from_slice(&bytes[..48]);
-        let aggregate_key = PublicKey::from_bytes(pk_bytes)?;
+        let aggregate_key = PublicKey::from_bytes(bytes)?;
         let mut len_bytes = [0u8; 8];
         len_bytes.copy_from_slice(&bytes[48..56]);
         let nr_parties = u64::from_be_bytes(len_bytes) as usize;
@@ -230,16 +225,12 @@ where
         let hm_offset = 56;
         let mut leaf_map = HashMap::new();
         for i in 0..nr_parties {
-            let mut pk_bytes = [0u8; 48];
             let mut idx_bytes = [0u8; 8];
-            pk_bytes.copy_from_slice(
-                &bytes[hm_offset + hm_element_size * i..hm_offset + hm_element_size * i + 48],
-            );
             idx_bytes.copy_from_slice(
                 &bytes[hm_offset + hm_element_size * i + 48..hm_offset + hm_element_size * i + 56],
             );
             leaf_map.insert(
-                PublicKey::from_bytes(pk_bytes)?,
+                PublicKey::from_bytes(&bytes[hm_offset + hm_element_size * i..])?,
                 usize::from_be_bytes(idx_bytes),
             );
         }
@@ -374,18 +365,14 @@ where
             // todo: properly handle this
             size_proofs = u64::from_be_bytes(u64_bytes) as usize;
         }
-        let mut aggr_sig_bytes = [0u8; 96];
-        aggr_sig_bytes.copy_from_slice(&bytes[offset..96 + offset]);
-        let aggregate = Signature::from_bytes(aggr_sig_bytes)?;
+        let aggregate = Signature::from_bytes(&bytes[offset..])?;
         let mut keys_proofs: Vec<(PublicKey, Path<H>)> = Vec::with_capacity(size);
 
         let pk_n_proof_size = 48 + H::output_size() * size_proofs + 16; // plus 16 for the index and depth
         for i in 0..size {
             let pk_offset = 112 + i * pk_n_proof_size;
             let proof_offset = pk_offset + 48;
-            let mut pk_bytes = [0u8; 48];
-            pk_bytes.copy_from_slice(&bytes[pk_offset..proof_offset]);
-            let pk = PublicKey::from_bytes(pk_bytes)?;
+            let pk = PublicKey::from_bytes(&bytes[pk_offset..])?;
             let proof = Path::from_bytes(&bytes[proof_offset..])?;
             keys_proofs.push((pk, proof));
         }

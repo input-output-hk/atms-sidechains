@@ -57,8 +57,8 @@ impl SigningKey {
     /// Convert a string of bytes into a `SigningKey`.
     /// # Error
     /// Fails if the byte string represents a scalar larger than the group order.
-    pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, AtmsError> {
-        match BlstSk::from_bytes(&bytes) {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
+        match BlstSk::from_bytes(&bytes[..32]) {
             Ok(sk) => Ok(Self(sk)),
             Err(e) => Err(blst_err_to_atms(e)
                 .expect_err("If deserialisation is not successful, blst returns and error different to SUCCESS."))
@@ -85,7 +85,7 @@ impl PublicKeyPoP {
     }
 
     /// Deserialise a byte string to a `PublicKeyPoP`.
-    pub fn from_bytes(bytes: &[u8; 144]) -> Result<Self, AtmsError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
         let pk = match BlstPk::from_bytes(&bytes[..48]) {
             Ok(key) => PublicKey(key),
             Err(e) => {
@@ -131,8 +131,8 @@ impl PublicKey {
     /// Convert a compressed byte string into `PublicKey`.
     /// # Error
     /// This function fails if the bytes do not represent a compressed point of the curve.
-    pub fn from_bytes(bytes: [u8; 48]) -> Result<Self, AtmsError> {
-        match BlstPk::from_bytes(&bytes) {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
+        match BlstPk::from_bytes(&bytes[..48]) {
             Ok(pk) => Ok(Self(pk)),
             Err(e) => Err(blst_err_to_atms(e)
                 .expect_err("If deserialisation is not successful, blst returns and error different to SUCCESS."))
@@ -240,8 +240,8 @@ impl Signature {
     /// Convert a string of bytes into a `Signature`.
     /// # Error
     /// Returns an error if the byte string does not represent a point in the curve.
-    pub fn from_bytes(bytes: [u8; 96]) -> Result<Self, AtmsError> {
-        match BlstSig::from_bytes(&bytes) {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
+        match BlstSig::from_bytes(&bytes[..96]) {
             Ok(sig) => Ok(Self(sig)),
             Err(e) => Err(blst_err_to_atms(e)
                 .expect_err("If deserialisation is not successful, blst returns and error different to SUCCESS."))
@@ -465,7 +465,7 @@ mod tests {
         fn serde_sk(sk in any::<[u8;32]>()) {
             let mut raw_scalar = blst_scalar::default();
             unsafe {
-                match SigningKey::from_bytes(sk) {
+                match SigningKey::from_bytes(&sk) {
                     Ok(_) => {
                         blst_scalar_from_bendian(&mut raw_scalar, &sk[0]);
                         assert_eq!(blst_scalar_fr_check(&raw_scalar), true);
@@ -484,7 +484,7 @@ mod tests {
             ChaCha20Rng::from_seed(seed).fill_bytes(&mut random_bytes);
             let mut raw_pk = blst_p1_affine::default();
             unsafe{
-                match PublicKey::from_bytes(random_bytes) {
+                match PublicKey::from_bytes(&random_bytes) {
                     Ok(_) => {
                         assert_eq!(blst_p1_uncompress(&mut raw_pk, &random_bytes[0]), BLST_ERROR::BLST_SUCCESS);
                     }
@@ -502,7 +502,7 @@ mod tests {
             ChaCha20Rng::from_seed(seed).fill_bytes(&mut random_bytes);
             let mut raw_sig = blst_p2_affine::default();
             unsafe {
-                match Signature::from_bytes(random_bytes) {
+                match Signature::from_bytes(&random_bytes) {
                     Ok(_) => {
                         assert_eq!(blst_p2_uncompress(&mut raw_sig, &random_bytes[0]), BLST_ERROR::BLST_SUCCESS);
                     }
