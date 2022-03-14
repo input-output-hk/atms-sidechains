@@ -272,7 +272,7 @@ where
 
         let mut unique_sigs = sigs.to_vec();
         unique_sigs.sort_unstable();
-        // make sure that we don't have duplicates.
+        // make sure that we remove duplicates.
         unique_sigs.dedup();
 
         let aggregate: Signature = unique_sigs
