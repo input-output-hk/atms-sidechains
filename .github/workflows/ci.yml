@@ -86,7 +86,7 @@ jobs:
         run: rustup run nightly cbindgen ./ --config cbindgen.toml --crate atms --output target/include/atms.h
 
       - name: Build C test
-        run: clang -x c++ tests.c atms.c -g -o tests -L ../target/release -latms -lpthread -lstdc++ -lgtest -lgtest_main
+        run: clang -x c++ tests.c atms.c multi_sig.c serialisation.c -g -o tests -L ../target/release -latms -lpthread -lstdc++ -lgtest -lgtest_main
         working-directory: c-tests
 
       - name: Run C test

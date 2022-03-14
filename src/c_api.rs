@@ -41,6 +41,7 @@ free_pointer!(pk, PublicKeyPtr);
 free_pointer!(pkpop, PublicKeyPoPPtr);
 free_pointer!(registration, RegistrationPtr);
 free_pointer!(aggr_sig, AggregateSigPtr);
+free_pointer!(avk, AvkPtr);
 
 // A macro would be nice for the below, but macros do not
 // seem to work properly with cbindgen:
@@ -93,6 +94,7 @@ atms_serialisation!(pk, PublicKeyPtr, PublicKey);
 atms_serialisation!(pkpop, PublicKeyPoPPtr, PublicKeyPoP);
 atms_serialisation!(registration, RegistrationPtr, Registration);
 atms_serialisation!(aggr_sig, AggregateSigPtr, AggregateSig);
+atms_serialisation!(avk, AvkPtr, Avk);
 
 use crate::aggregation::Avk;
 
@@ -118,7 +120,10 @@ pub extern "C" fn atms_generate_keypair(
 pub extern "C" fn atms_pkpop_to_pk(pkpop_ptr: PublicKeyPoPPtr, pk_ptr: *mut PublicKeyPtr) -> i64 {
     unsafe {
         if let (Some(ref_pkpop), Some(ref_pk)) = (pkpop_ptr.as_ref(), pk_ptr.as_mut()) {
-            *ref_pk = Box::into_raw(Box::new(ref_pkpop.0));
+            match ref_pkpop.verify() {
+                Ok(_) => {*ref_pk = Box::into_raw(Box::new(ref_pkpop.0));}
+                Err(_) => return -1,
+            }
             return 0;
         }
         NULLPOINTERERR
