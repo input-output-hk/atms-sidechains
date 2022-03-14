@@ -21,7 +21,7 @@ cbindgen:
 cargo install cbindgen
 ```
 
-and then build the header file by running the following command from the parent directory:
+and then build the header file by running the following command from the parent directory (nightly is required):
 ```shell
 rustup run nightly cbindgen ./ --config cbindgen.toml --crate atms --output target/include/atms.h
 ```

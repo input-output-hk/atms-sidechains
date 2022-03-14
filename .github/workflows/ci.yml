@@ -18,7 +18,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable, nightly
+          toolchain: stable
           components: clippy, rustfmt, cbindgen
           override: true
 
@@ -83,7 +83,7 @@ jobs:
         run: sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake CMakeLists.txt && sudo make && sudo cp lib/*.a /usr/lib && sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a && sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
 
       - name: Produce header files
-        run: rustup run nightly cbindgen ./ --config cbindgen.toml --crate atms --output target/include/atms.h
+        run: RUSTC_BOOTSTRAP=1 rustup run nightly cbindgen ./ --config cbindgen.toml --crate atms --output target/include/atms.h
 
       - name: Build C test
         run: clang -x c++ tests.c atms.c multi_sig.c serialisation.c -g -o tests -L ../target/release -latms -lpthread -lstdc++ -lgtest -lgtest_main
