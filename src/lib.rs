@@ -2,10 +2,10 @@
 //! ATMS
 
 mod aggregation;
+mod c_api;
 mod error;
 mod merkle_tree;
 mod multi_sig;
-mod c_api;
 
 pub use crate::{
     aggregation::{AggregateSig, Registration},

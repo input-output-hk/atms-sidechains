@@ -1,1 +1,3 @@
 proptest-regressions/
+c-tests/tests
+c-tests/tests.dSYM

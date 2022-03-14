@@ -1,11 +1,10 @@
 //! C api. All functions return an i64, with 0 upon success, and -99 if the returned pointer
 //! is null. Other error codes are function dependent.
-use crate::{AggregateSig, Registration, Signature, SigningKey, PublicKey, PublicKeyPoP, AtmsError};
-use rand_core::OsRng;
-use std::{
-    ffi::CStr,
-    os::raw::c_char
+use crate::{
+    AggregateSig, AtmsError, PublicKey, PublicKeyPoP, Registration, Signature, SigningKey,
 };
+use rand_core::OsRng;
+use std::{ffi::CStr, os::raw::c_char};
 
 pub const NULLPOINTERERR: i64 = -99;
 
@@ -18,10 +17,9 @@ type RegistrationPtr = *mut Registration<H>;
 type AggregateSigPtr = *mut AggregateSig<H>;
 type AvkPtr = *mut Avk<H>;
 
-
 /// Frees a signature pointer
 macro_rules! free_pointer {
-    ($type_name:ident, $pointer_type:ty)=> {
+    ($type_name:ident, $pointer_type:ty) => {
         paste::item! {
             #[no_mangle]
             pub extern "C" fn [< free_ $type_name>](p: $pointer_type) -> i64 {
@@ -34,7 +32,7 @@ macro_rules! free_pointer {
                 }
             }
         }
-    }
+    };
 }
 
 free_pointer!(signature, SignaturePtr);
@@ -99,7 +97,10 @@ atms_serialisation!(aggr_sig, AggregateSigPtr, AggregateSig);
 use crate::aggregation::Avk;
 
 #[no_mangle]
-pub extern "C" fn atms_generate_keypair(sk_ptr: *mut SigningKeyPtr, pk_ptr: *mut PublicKeyPoPPtr) -> i64 {
+pub extern "C" fn atms_generate_keypair(
+    sk_ptr: *mut SigningKeyPtr,
+    pk_ptr: *mut PublicKeyPoPPtr,
+) -> i64 {
     let mut rng = OsRng::default();
     let sk = SigningKey::gen(&mut rng);
     let pk = PublicKeyPoP::from(&sk);
@@ -117,7 +118,7 @@ pub extern "C" fn atms_generate_keypair(sk_ptr: *mut SigningKeyPtr, pk_ptr: *mut
 pub extern "C" fn atms_pkpop_to_pk(pkpop_ptr: PublicKeyPoPPtr, pk_ptr: *mut PublicKeyPtr) -> i64 {
     unsafe {
         if let (Some(ref_pkpop), Some(ref_pk)) = (pkpop_ptr.as_ref(), pk_ptr.as_mut()) {
-            *ref_pk = Box::into_raw(Box::new(ref_pkpop.0.clone()));
+            *ref_pk = Box::into_raw(Box::new(ref_pkpop.0));
             return 0;
         }
         NULLPOINTERERR
@@ -132,7 +133,7 @@ pub extern "C" fn atms_sign(
 ) -> i64 {
     unsafe {
         if let (Some(ref_key), Some(ref_msg), Some(ref_sig)) =
-        (key_ptr.as_ref(), msg_ptr.as_ref(), signature_ptr.as_mut())
+            (key_ptr.as_ref(), msg_ptr.as_ref(), signature_ptr.as_mut())
         {
             let msg = CStr::from_ptr(ref_msg);
             *ref_sig = Box::into_raw(Box::new(ref_key.sign(msg.to_bytes())));
@@ -150,7 +151,7 @@ pub extern "C" fn atms_verify(
 ) -> i64 {
     unsafe {
         if let (Some(ref_msg), Some(ref_key), Some(ref_sig)) =
-        (msg_ptr.as_ref(), key_ptr.as_ref(), sig_ptr.as_ref())
+            (msg_ptr.as_ref(), key_ptr.as_ref(), sig_ptr.as_ref())
         {
             let msg = CStr::from_ptr(ref_msg);
             return match ref_sig.verify(ref_key, msg.to_bytes()) {
@@ -171,9 +172,7 @@ pub extern "C" fn avk_key_registration(
     avk_key: *mut RegistrationPtr,
 ) -> i64 {
     unsafe {
-        if let (Some(ref_key), Some(ref_avk_key)) =
-        (keys.as_ref(), avk_key.as_mut())
-        {
+        if let (Some(ref_key), Some(ref_avk_key)) = (keys.as_ref(), avk_key.as_mut()) {
             let pks = slice::from_raw_parts(ref_key, nr_signers)
                 .iter()
                 .map(|p| **p)
@@ -197,7 +196,7 @@ pub extern "C" fn atms_registration_to_avk(
 ) -> i64 {
     unsafe {
         if let (Some(ref_avk), Some(ref_registration)) =
-        (avk_ptr.as_mut(), registration_ptr.as_ref())
+            (avk_ptr.as_mut(), registration_ptr.as_ref())
         {
             *ref_avk = Box::into_raw(Box::new(ref_registration.to_avk()));
             return 0;
@@ -260,7 +259,7 @@ pub extern "C" fn atms_verify_aggr(
 ) -> i64 {
     unsafe {
         if let (Some(ref_msg), Some(ref_sig), Some(ref_avk)) =
-        (msg_ptr.as_ref(), sig_ptr.as_ref(), avk_ptr.as_ref())
+            (msg_ptr.as_ref(), sig_ptr.as_ref(), avk_ptr.as_ref())
         {
             let msg = CStr::from_ptr(ref_msg);
             return match ref_sig.verify(msg.to_bytes(), ref_avk, threshold) {
