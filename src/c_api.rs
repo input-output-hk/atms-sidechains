@@ -121,7 +121,9 @@ pub extern "C" fn atms_pkpop_to_pk(pkpop_ptr: PublicKeyPoPPtr, pk_ptr: *mut Publ
     unsafe {
         if let (Some(ref_pkpop), Some(ref_pk)) = (pkpop_ptr.as_ref(), pk_ptr.as_mut()) {
             match ref_pkpop.verify() {
-                Ok(_) => {*ref_pk = Box::into_raw(Box::new(ref_pkpop.0));}
+                Ok(_) => {
+                    *ref_pk = Box::into_raw(Box::new(ref_pkpop.0));
+                }
                 Err(_) => return -1,
             }
             return 0;
