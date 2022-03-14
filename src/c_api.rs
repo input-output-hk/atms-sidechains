@@ -114,6 +114,17 @@ pub extern "C" fn atms_generate_keypair(sk_ptr: *mut SigningKeyPtr, pk_ptr: *mut
 }
 
 #[no_mangle]
+pub extern "C" fn atms_pkpop_to_pk(pkpop_ptr: PublicKeyPoPPtr, pk_ptr: *mut PublicKeyPtr) -> i64 {
+    unsafe {
+        if let (Some(ref_pkpop), Some(ref_pk)) = (pkpop_ptr.as_ref(), pk_ptr.as_mut()) {
+            *ref_pk = Box::into_raw(Box::new(ref_pkpop.0.clone()));
+            return 0;
+        }
+        NULLPOINTERERR
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn atms_sign(
     msg_ptr: *const c_char,
     key_ptr: SigningKeyPtr,
@@ -241,7 +252,7 @@ pub extern "C" fn atms_aggregate_sigs(
 /// * -3 if there is an invalid proof of Merkle Tree membership
 /// * -4 if a key in `self` is not found in `avk_ptr`
 /// * -5 if the signature is invalid
-pub extern "C" fn atms_verify_sig(
+pub extern "C" fn atms_verify_aggr(
     msg_ptr: *const c_char,
     sig_ptr: AggregateSigPtr,
     avk_ptr: AvkPtr,
