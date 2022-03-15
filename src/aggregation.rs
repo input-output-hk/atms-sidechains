@@ -1,18 +1,11 @@
-//! Ad-Hoc Threshold MultiSignatures (ATMS) implementation.
-//!
-//! The implementation in this module is parameterized by the underlying
-//! signature scheme, which will define its own type of key and signature.
-//! The requirements of the unferlying signature scheme is that it provides the
-//! functionality of aggregation both to the public keys as to the signatures.
-//! We use multiplicative notation to represent this binary operation between
-//! two instances.
-//!
-//! For sake of simplicity we omit the `Setup`, `KeyGen`, `Sign` and `Verify` algorithms
-//! from the underlying signature, and refer to the documentation available in the
-//! different multi signatures implementations ([msp](./src/msp),
-//! [MuSig2](./src/examples/atms_musig2), or [naive Schnorr](./src/examples/atms_nsms)).
+//! Aggregation module, which contains the mechanisms to compute and verify the
+//! aggregate signatures and keys of an ATMS signature protocol.
 //!
 //! # Notation
+//! An ATMS signature protocol relies on an underlying multi-signature.
+//! For sake of simplicity we omit the `Setup`, `KeyGen`, `Sign` and `Verify` algorithms
+//! from the underlying signature, and refer to the documentation available in the
+//! [multi signatures implementation](./src/multi_sig).
 //! Given a set $S$, denote by $\langle S\rangle$ a Merkle-tree commitment to the set $S$ created
 //! in some fixed deterministic way. We divide the signers into two groups, eligible and
 //! participants. The eligible signers, $Es$ with $|Es| = n$, are all those who are allowed to
@@ -23,33 +16,6 @@
 //! the verification keys of all participants, and $\sigma_i$ for $i\in Ps$ the signatures produced
 //! by the participating users.
 //!
-//! # ATMS protocol
-//! Any third party with access to the public keys from all eligible signers can generate an
-//! aggregate key as follows. Let $\mathcal{VK} = \lbrace vk_i\rbrace_{i\in Es}$.
-//!
-//! $$ avk = \left(\prod_{i\in Es}vk_i, \langle \mathcal{VK}\rangle\right) $$
-//!
-//! In order to verify the correctness of a key aggregation, one simply recomputes the aggregation
-//! for a given set, and checks that it matches the expected value.
-//!
-//! The signature aggregation can again be performed by any third party. Given $d$ pairs of
-//! signatures with their respective public keys $\lbrace\sigma_i, vk_i\rbrace_{i\in Ps}$, and the remaining
-//! $n-d$ keys of the non signers, $\lbrace\widehat{vk}_i\rbrace _{i\in Es \setminus Ps }$, the aggregator
-//! produces the following aggregate signature
-//!
-//! $$ \sigma = \left(\sigma_a = \prod_{i\in Ps}\sigma_i, \lbrace\widehat{vk}_i\rbrace _{i\in Es \setminus Ps }, \lbrace\pi _{\widehat{vk_i}}\rbrace _{i\in Es \setminus Ps}\right)$$
-//!
-//! where $\pi_{\widehat{vk_i}}$ denotes the proof of membership of key $\widehat{vk_i}$ in the merkle
-//! commitment.
-//!
-//! Finally, to verify an aggregate signature, the verifier takes as input a message $m$, an
-//! aggregate key $avk$, and a signature $\sigma$ and proceeds as follows:
-//! 1. Verify that all public keys are different, and that they belong to the commitment $\langle
-//!    \mathcal{VK}\rangle$ in $avk$ using the proofs of membership.
-//! 2. Compute $avk'$ by dividing the aggregate key of non-signers, i.e.
-//!    $$avk' = \frac{avk}{\prod_{i\in Es\setminus Ps}\widehat{vk_i}}$$
-//! 3. Return valid if an only if $d\geq t$ and the $\sigma_a$ validates with respect to $avk'$.
-//!
 //! # Example
 //! The following is an example of usage using the MSP signature scheme.
 
@@ -58,8 +24,10 @@
 use crate::{
     error::{blst_err_to_atms, AtmsError},
     merkle_tree::{MerkleTreeCommitment, Path},
-    {MerkleTree, PublicKey, PublicKeyPoP, Signature},
+    multi_sig::{PublicKey, PublicKeyPoP, Signature},
+    MerkleTree,
 };
+
 use blake2::Digest;
 use digest::FixedOutput;
 use std::{
@@ -67,7 +35,16 @@ use std::{
     fmt::Debug,
 };
 
-/// An ATMS aggregate key, `Avk`, contains a merkle tree commitment, and the aggregated key
+/// An ATMS aggregate key, `Avk`, contains a vector commitment of all eligible signers, and the
+/// aggregated key. Any third party with access to the public keys from all eligible signers can
+/// generate an aggregate key as follows. Let $\mathcal{VK} = \lbrace vk_i\rbrace_{i\in Es}$.
+///
+/// $$ avk = \left(\prod_{i\in Es}vk_i, \langle \mathcal{VK}\rangle\right) $$
+///
+/// In order to generate an `Avk`, it is necessary to previously produce a valid registration
+/// of all eligible signers. This guarantees that an `Avk` is only generated with keys
+/// with a valid proof of possession. Otherwise, an adversary could produce what is known as
+/// the "rogue key attack".
 #[derive(Debug)]
 pub struct Avk<H>
 where
@@ -95,7 +72,8 @@ impl<H> Avk<H>
 where
     H: Digest + FixedOutput,
 {
-    /// Check that this aggregation is derived from the given sequence of valid keys.
+    /// In order to verify the correctness of a key aggregation, one simply recomputes the aggregation
+    /// for a given set, and checks that it matches the expected value.
     pub fn check(&self, keys: &[PublicKeyPoP]) -> Result<(), AtmsError> {
         let akey2: Registration<H> = Registration::new(keys)?;
         if self == &akey2.to_avk() {
@@ -113,7 +91,12 @@ where
         result
     }
 
-    /// Try to convert a byte string to an `Avk`.
+    /// Try to convert a byte string to an `Avk`. This function must be used in a setting
+    /// where there exists a source of truth, and the verifier can check that the provided
+    /// `Avk` is valid (e.g. through a signature of trusted authority).
+    ///
+    /// # Error
+    /// Function fails if the byte representation corresponds to an invalid Avk
     // todo: again, handle these conversions to usize..
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
         let mut nr_bytes = [0u8; 8];
@@ -130,7 +113,9 @@ where
     }
 }
 
-/// An ATMS registration
+/// An ATMS registration, which contains the aggregate key of all eligible signers, the Merkle
+/// tree containing _all_ nodes in the tree (including the leaves), and a hash map, specifying
+/// the position of each key in the merkle tree commitment.
 #[derive(Debug)]
 pub struct Registration<H>
 where
@@ -144,9 +129,9 @@ where
     leaf_map: HashMap<PublicKey, usize>,
 }
 
-/// An Aggregated Signature
-///
-/// Testing for docs
+/// An ATMS aggregate signature, contains the multi signature aggregation of all participating signers
+/// and the public key of all non-participating signers, together with a proof of membership to the
+/// vector commitment of all eligible signers.
 #[derive(Debug)]
 pub struct AggregateSig<H>
 where
@@ -162,7 +147,21 @@ impl<H> Registration<H>
 where
     H: Digest + FixedOutput,
 {
-    /// Aggregate a set of keys, and commit to them in a canonical order.
+    /// Aggregate a set of keys, and commit to them in a canonical order. The canonical order
+    /// is defined as the ordering of the byte representation of the compressed public keys. In
+    /// practice, this ordering can be any deterministic function as long as the aggregator and
+    /// the verifier use the same.
+    ///
+    /// Provided with a vector of keys with their proof of possession, `PublicKeyPoP`, the registration
+    /// proceeds by checking all proofs of possession. Then, it aggregates all public key by adding
+    /// them. Similarly, it commits to them by first ordering them, and then committing them in a
+    /// Merkle Tree. Finally, it computes a hash map, by creating the relation of the relative
+    /// position of each key in the committed vector. Registration guarantees that there are no
+    /// repeated keys.
+    ///
+    /// # Error
+    /// The function returns `AtmsError::InvalidPoP` if one of the proofs of possession is invalid,
+    /// and `AtmsError::RegisterExistingKey` if the input tuple contains a repeated key.
     pub fn new(keys_pop: &[PublicKeyPoP]) -> Result<Self, AtmsError> {
         let mut checked_keys: Vec<PublicKey> = Vec::with_capacity(keys_pop.len());
 
@@ -192,7 +191,8 @@ where
         })
     }
 
-    /// Return an `Avk` key from the key registration
+    /// Return an `Avk` key from the key registration. This consists of the merkle root
+    /// of the vector commitment.
     pub fn to_avk(&self) -> Avk<H> {
         Avk {
             aggregate_key: self.aggregate_key,
@@ -201,8 +201,10 @@ where
         }
     }
 
-    /// Convert a registration into a byte array
-    pub fn to_bytes(&self) -> Vec<u8> {
+    /// Convert a registration into a byte array. Not exposing serde of registration because
+    /// passing the keys with PoP is cheaper and safer. This way we guarantee that a Registration
+    /// can only be generated with valid keys.
+    fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::new();
         result.extend_from_slice(&self.aggregate_key.to_bytes());
         result.extend_from_slice(&self.leaf_map.len().to_be_bytes());
@@ -215,8 +217,13 @@ where
         result
     }
 
-    /// Try to convert a byte array into an ATMS `Registration`
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
+    /// Try to convert a byte array into an ATMS `Registration`.  Not exposing serde of registration because
+    /// passing the keys with PoP is cheaper and safer. This way we guarantee that a Registration
+    /// can only be generated with valid keys.
+    ///
+    /// # Error
+    /// Fails if the byte representation is an incorrect Registration.
+    fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
         let aggregate_key = PublicKey::from_bytes(bytes)?;
         let mut len_bytes = [0u8; 8];
         len_bytes.copy_from_slice(&bytes[48..56]);
@@ -250,6 +257,20 @@ where
     H: Digest + FixedOutput,
 {
     /// Aggregate a list of signatures.
+    /// The signature aggregation can again be performed by any third party. Given $d$ pairs of
+    /// signatures, `sigs`,  with their respective public keys $\lbrace\sigma_i, vk_i\rbrace_{i\in Ps}$,
+    /// the aggregator produces the following aggregate signature. It begins by checking all signatures
+    /// are valid, and which public keys
+    /// are missing from the tuple of submitted signatures, $\widehat{vk}_i$, and computes their proof
+    /// of set membership within the set of eligible signers, $\pi _{\widehat{vk_i}}$. Then it proceeds
+    /// with the computation of the aggregate signature:
+    ///
+    /// $$ \sigma = \left(\sigma_a = \prod_{i\in Ps}\sigma_i, \lbrace\widehat{vk}_i\rbrace _{i\in Es \setminus Ps }, \lbrace\pi _{\widehat{vk_i}}\rbrace _{i\in Es \setminus Ps}\right).$$
+    ///
+    /// # Error
+    /// Aggregation returns `AtmsError::NonRegisteredParticipant` if one of the submitted signatures
+    /// comes from a non-registered participant, and `AtmsError::InvalidSignature` if one of the
+    /// signatures is invalid.
     // todo: do we want to pass the pks as part of the sigs, or maybe just some indices?
     pub fn new(
         registration: &Registration<H>,
@@ -293,8 +314,23 @@ where
         })
     }
 
-    /// Verify that this aggregation is valid for the given collection of keys and message.
-    pub fn verify(&self, msg: &[u8], keys: &Avk<H>, threshold: usize) -> Result<(), AtmsError> {
+    /// Verify that this aggregation, `self`, is a valid signature of `msg` with respect to the
+    /// aggregate key `avk` with the given `threshold`.
+    /// The verifier takes as input a message `msg`, an
+    /// aggregate key `avk`, a signature $\sigma$ and a `threshold` $t$, and proceeds as follows:
+    /// 1. Verify that all public keys are different, and that they belong to the commitment $\langle
+    ///    \mathcal{VK}\rangle$ in $avk$ using the proofs of membership.
+    /// 2. Compute $avk'$ by dividing the aggregate key of non-signers, i.e.
+    ///    $$avk' = \frac{avk}{\prod_{i\in Es\setminus Ps}\widehat{vk_i}}$$
+    /// 3. Return valid if an only if $d\geq t$ and $\sigma$ validates with respect to $avk'$.
+    ///
+    /// # Error
+    /// Verification failds in the following cases:
+    /// * `AtmsError::FoundDuplicates` if there are duplicates in the non-signers,
+    /// * `AtmsError::InvalidMerkleProof` if the proof of membership is invalid, and
+    /// * `AtmsError::TooMuchOutstandingSigners` if there are not enough signers.
+    ///
+    pub fn verify(&self, msg: &[u8], avk: &Avk<H>, threshold: usize) -> Result<(), AtmsError> {
         // Check duplicates by building this set of
         // non-signing keys
         let mut unique_non_signers = HashSet::new();
@@ -303,7 +339,7 @@ where
         // Check inclusion proofs
         // todo: best compress or serialize?
         for (non_signer, proof) in &self.keys_proofs {
-            if keys
+            if avk
                 .mt_commitment
                 .check(&non_signer.0.compress(), proof)
                 .is_ok()
@@ -319,13 +355,13 @@ where
         }
 
         // The threshold is k, for n = 3*k + 1
-        assert!(keys.nr_parties - threshold as usize >= (keys.nr_parties - 1) / 3);
-        if non_signing_size > keys.nr_parties - threshold {
+        assert!(avk.nr_parties - threshold as usize >= (avk.nr_parties - 1) / 3);
+        if non_signing_size > avk.nr_parties - threshold {
             return Err(AtmsError::TooMuchOutstandingSigners(non_signing_size));
         }
         // Check with the underlying signature scheme that the quotient of the
         // aggregated key by the non-signers validates this signature.
-        let final_key = keys.aggregate_key - unique_non_signers.into_iter().sum();
+        let final_key = avk.aggregate_key - unique_non_signers.into_iter().sum();
         blst_err_to_atms(
             self.aggregate
                 .0

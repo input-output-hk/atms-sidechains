@@ -1,6 +1,6 @@
 //! Errors specific to this crate
 
-use crate::PublicKey;
+use crate::multi_sig::PublicKey;
 use blst::BLST_ERROR;
 
 #[derive(Debug, thiserror::Error, Eq, PartialEq)]

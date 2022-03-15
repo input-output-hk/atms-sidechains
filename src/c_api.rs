@@ -1,7 +1,9 @@
 //! C api. All functions return an i64, with 0 upon success, and -99 if the returned pointer
 //! is null. Other error codes are function dependent.
 use crate::{
-    AggregateSig, AtmsError, PublicKey, PublicKeyPoP, Registration, Signature, SigningKey,
+    aggregation::{AggregateSig, Registration},
+    multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey},
+    error::AtmsError
 };
 use rand_core::OsRng;
 use std::{ffi::CStr, os::raw::c_char};

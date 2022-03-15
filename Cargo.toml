@@ -7,6 +7,9 @@ edition = "2018"
 name = "atms"
 crate-type = ["lib", "cdylib", "staticlib"]
 
+[build]
+rustdocflags = [ "--html-in-header", "./src/docs-header.html" ]
+
 [dependencies]
 blst = "0.3.7"
 digest = "0.9"
