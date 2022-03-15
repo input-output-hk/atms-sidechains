@@ -1,3 +1,25 @@
+//! Multi signature module, which contains the wrappers around [blst](https://github.com/supranational/blst)
+//! to build Boldryeva multi signature scheme.
+//!
+//! # Notation
+//! We implement Boldryeva multi signatures over curve BLS12-381. Further reading
+//! can be found [here](https://hackmd.io/@benjaminion/bls12-381) and the references thereof cited.
+//! For level of detail required in this document, it is sufficient to understand that one can define
+//! a pairing over BLS12-381, where a pairing is a map: $e:\mathbb{G}_1 X \mathbb{G}_2 -> \mathbb{G}_T$, which satisfies the
+//! following properties:
+//!
+//! * Bilinearity: $\forall a,b \in F^*_q$, $\forall P \in \mathbb{G}_1, Q \in \mathbb{G}_2: e(aP,bQ)=e(P,Q)^{ab}$
+//! * Non-degeneracy: $e \neq 1$
+//! * Computability: There exists an efficient algorithm to compute $e$
+//!
+//! where $\mathbb{G}_1, \mathbb{G}_2$ and $\mathbb{G}_T$ are three distinct groups of order a prime $q$. We
+//! use additive notation for the operations over $\mathbb{G}_1, \mathbb{G}_2$ as the groups are defined
+//! in an elliptic curve, while we use multiplicative notation for $\mathbb{G}_T$ as the latter is defined
+//! in a multiplicative subgroup of an extension of $F_q$. We use $G_1, G_2$ to denote the generators of
+//! $\mathbb{G}_1$ and $\mathbb{G}_2$ respectively. Finally, we use a hash function
+//! $H_2: {0,1}^* \rightarrow \mathgg{G}_2$ following the standardisation effort in the
+//! [Hashing to curves](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve-14).
+
 use crate::error::{blst_err_to_atms, AtmsError};
 use blst::min_pk::{
     AggregatePublicKey, AggregateSignature, PublicKey as BlstPk, SecretKey as BlstSk,
@@ -13,19 +35,19 @@ use std::{
     ops::Sub,
 };
 
-/// Individual private key
+/// Signing key.
 #[derive(Debug)]
 pub struct SigningKey(BlstSk);
 
-/// Individual public key
+/// Public Key.
 #[derive(Clone, Copy, Debug)]
 pub struct PublicKey(pub(crate) BlstPk);
 
-/// Proof of possession, proving the correctness of a purblic key
+/// Proof of possession, proving the correctness of a public key.
 #[derive(Clone, Copy, Debug)]
 pub struct ProofOfPossession(BlstSig);
 
-/// A public key with its proof of possession
+/// A public key with its proof of possession.
 #[derive(Clone, Copy, Debug)]
 pub struct PublicKeyPoP(pub(crate) PublicKey, pub(crate) ProofOfPossession);
 
@@ -34,7 +56,8 @@ pub struct PublicKeyPoP(pub(crate) PublicKey, pub(crate) ProofOfPossession);
 pub struct Signature(pub(crate) BlstSig);
 
 impl SigningKey {
-    /// Generate a new private key
+    /// Generate a new private key by choosing an integer uniformly at random from
+    /// $\mathbb{Z}_q$.
     pub fn gen<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
         let mut ikm = [0u8; 32];
         rng.fill_bytes(&mut ikm);
@@ -44,12 +67,13 @@ impl SigningKey {
         )
     }
 
-    /// Produce a partial signature
+    /// Produce a partial signature for message `msg`. The signature, $\sigma$ is computed by hashing
+    /// `msg` into $\mathbb{G}_2$ and multiplying by the secret key,  $H = \sigma \cdot H_2(msg)$.
     pub fn sign(&self, msg: &[u8]) -> Signature {
         Signature(self.0.sign(msg, &[], &[]))
     }
 
-    /// Convert the secret key into byte string
+    /// Convert the secret key into byte string.
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0.to_bytes()
     }
@@ -66,8 +90,34 @@ impl SigningKey {
     }
 }
 
+/// Create a `PublicKey` from a secret key, by returning $sk\cdot G_1$.
+impl From<&SigningKey> for PublicKey {
+    fn from(sk: &SigningKey) -> Self {
+        Self(sk.0.sk_to_pk())
+    }
+}
+
+/// Create a `ProofOfPossession` from a secret key, by returning $sk\cdot H_2(b"PoP")$.
+impl From<&SigningKey> for ProofOfPossession {
+    fn from(sk: &SigningKey) -> Self {
+        ProofOfPossession(sk.0.sign(b"PoP", &[], &[]))
+    }
+}
+
+/// Create a `PublicKeyPoP` by computing the public key and the proof of correctness and returning the
+/// tuple.
+impl From<&SigningKey> for PublicKeyPoP {
+    fn from(sk: &SigningKey) -> Self {
+        Self(PublicKey(sk.0.sk_to_pk()), sk.into())
+    }
+}
+
 impl PublicKeyPoP {
-    /// Verify the proof of possession with respect to the associated public key.
+    /// Verify the proof of possession with respect to the associated public key, by checking that
+    /// $e(pk, H_2(b"PoP")) = e(G_1, PoP)$.
+    ///
+    /// # Error
+    /// Returns `InvalidPoP` in case the proof is invalid.
     pub fn verify(&self) -> Result<PublicKey, AtmsError> {
         if self.1 .0.verify(false, b"PoP", &[], &[], &self.0 .0, false) == BLST_ERROR::BLST_SUCCESS
         {
@@ -104,31 +154,14 @@ impl PublicKeyPoP {
     }
 }
 
-impl From<&SigningKey> for PublicKey {
-    fn from(sk: &SigningKey) -> Self {
-        Self(sk.0.sk_to_pk())
-    }
-}
-
-impl From<&SigningKey> for ProofOfPossession {
-    fn from(sk: &SigningKey) -> Self {
-        ProofOfPossession(sk.0.sign(b"PoP", &[], &[]))
-    }
-}
-
-impl From<&SigningKey> for PublicKeyPoP {
-    fn from(sk: &SigningKey) -> Self {
-        Self(PublicKey(sk.0.sk_to_pk()), sk.into())
-    }
-}
-
 impl PublicKey {
-    /// Convert an `PublicKey` to its compressed byte representation
+    /// Convert an `PublicKey` to its compressed byte representation.
     pub fn to_bytes(&self) -> [u8; 48] {
         self.0.to_bytes()
     }
 
-    /// Convert a compressed byte string into `PublicKey`.
+    /// Convert a compressed byte string into a `PublicKey`.
+    ///
     /// # Error
     /// This function fails if the bytes do not represent a compressed point of the curve.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
@@ -200,8 +233,8 @@ impl<'a> Sum<&'a Self> for PublicKey {
     }
 }
 
-/// We need some unsafe code here due to what is being exposed in the rust FFI.
-/// todo: take particular care reviewing this
+// We need some unsafe code here due to what is being exposed in the rust FFI.
+// todo: take particular care reviewing this
 impl Sub for PublicKey {
     type Output = Self;
     fn sub(self, rhs: Self) -> PublicKey {
@@ -227,7 +260,11 @@ impl Sub for PublicKey {
 }
 
 impl Signature {
-    /// Verify a signature
+    /// Given a public key, $pk$, a signature, $\sigma$, and a message, $msg$, a verifier
+    /// accepts the signature if the following check succeeds: $e(pk, H_2(msg)) = e(G_1, \sigma)$.
+    ///
+    /// # Error
+    /// Function returns an error if the signature is invalid.
     pub fn verify(&self, pk: &PublicKey, msg: &[u8]) -> Result<(), AtmsError> {
         blst_err_to_atms(self.0.verify(false, msg, &[], &[], &pk.0, false))
     }

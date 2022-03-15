@@ -39,7 +39,7 @@ use std::{
 /// aggregated key. Any third party with access to the public keys from all eligible signers can
 /// generate an aggregate key as follows. Let $\mathcal{VK} = \lbrace vk_i\rbrace_{i\in Es}$.
 ///
-/// $$ avk = \left(\prod_{i\in Es}vk_i, \langle \mathcal{VK}\rangle\right) $$
+/// $$ avk = \left(\sum_{i\in Es}vk_i, \langle \mathcal{VK}\rangle\right) $$
 ///
 /// In order to generate an `Avk`, it is necessary to previously produce a valid registration
 /// of all eligible signers. This guarantees that an `Avk` is only generated with keys
@@ -265,7 +265,7 @@ where
     /// of set membership within the set of eligible signers, $\pi _{\widehat{vk_i}}$. Then it proceeds
     /// with the computation of the aggregate signature:
     ///
-    /// $$ \sigma = \left(\sigma_a = \prod_{i\in Ps}\sigma_i, \lbrace\widehat{vk}_i\rbrace _{i\in Es \setminus Ps }, \lbrace\pi _{\widehat{vk_i}}\rbrace _{i\in Es \setminus Ps}\right).$$
+    /// $$ \sigma = \left(\sigma_a = \sum_{i\in Ps}\sigma_i, \lbrace\widehat{vk}_i\rbrace _{i\in Es \setminus Ps }, \lbrace\pi _{\widehat{vk_i}}\rbrace _{i\in Es \setminus Ps}\right).$$
     ///
     /// # Error
     /// Aggregation returns `AtmsError::NonRegisteredParticipant` if one of the submitted signatures
@@ -321,7 +321,7 @@ where
     /// 1. Verify that all public keys are different, and that they belong to the commitment $\langle
     ///    \mathcal{VK}\rangle$ in $avk$ using the proofs of membership.
     /// 2. Compute $avk'$ by dividing the aggregate key of non-signers, i.e.
-    ///    $$avk' = \frac{avk}{\prod_{i\in Es\setminus Ps}\widehat{vk_i}}$$
+    ///    $$avk' = avk - \sum_{i\in Es\setminus Ps}\widehat{vk_i}}$$
     /// 3. Return valid if an only if $d\geq t$ and $\sigma$ validates with respect to $avk'$.
     ///
     /// # Error
