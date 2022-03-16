@@ -94,7 +94,6 @@ atms_serialisation!(signature, SignaturePtr, Signature);
 atms_serialisation!(sk, SigningKeyPtr, SigningKey);
 atms_serialisation!(pk, PublicKeyPtr, PublicKey);
 atms_serialisation!(pkpop, PublicKeyPoPPtr, PublicKeyPoP);
-atms_serialisation!(registration, RegistrationPtr, Registration);
 atms_serialisation!(aggr_sig, AggregateSigPtr, AggregateSig);
 atms_serialisation!(avk, AvkPtr, Avk);
 

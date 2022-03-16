@@ -5,10 +5,10 @@
 //! We implement Boldryeva multi signatures over curve BLS12-381. Further reading
 //! can be found [here](https://hackmd.io/@benjaminion/bls12-381) and the references thereof cited.
 //! For level of detail required in this document, it is sufficient to understand that one can define
-//! a pairing over BLS12-381, where a pairing is a map: $e:\mathbb{G}_1 X \mathbb{G}_2 -> \mathbb{G}_T$, which satisfies the
+//! a pairing over BLS12-381, where a pairing is a map: $e:\mathbb{G}_1 \times \mathbb{G}_2 \rightarrow \mathbb{G}_T$, which satisfies the
 //! following properties:
 //!
-//! * Bilinearity: $\forall a,b \in F^*_q$, $\forall P \in \mathbb{G}_1, Q \in \mathbb{G}_2: e(aP,bQ)=e(P,Q)^{ab}$
+//! * Bilinearity: $\forall a,b \in F^* _q$, $\forall P \in \mathbb{G}_1, Q \in \mathbb{G}_2: e(a* P,b* Q)=e(P,Q)^{ab}$
 //! * Non-degeneracy: $e \neq 1$
 //! * Computability: There exists an efficient algorithm to compute $e$
 //!
@@ -17,8 +17,8 @@
 //! in an elliptic curve, while we use multiplicative notation for $\mathbb{G}_T$ as the latter is defined
 //! in a multiplicative subgroup of an extension of $F_q$. We use $G_1, G_2$ to denote the generators of
 //! $\mathbb{G}_1$ and $\mathbb{G}_2$ respectively. Finally, we use a hash function
-//! $H_2: {0,1}^* \rightarrow \mathgg{G}_2$ following the standardisation effort in the
-//! [Hashing to curves](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve-14).
+//! $H_2: \lbrace 0,1\rbrace^* \rightarrow \mathbb{G}_2$ following the standardisation effort in the
+//! [hashing to curves](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve-14) standard draft.
 
 use crate::error::{blst_err_to_atms, AtmsError};
 use blst::min_pk::{
@@ -68,7 +68,7 @@ impl SigningKey {
     }
 
     /// Produce a partial signature for message `msg`. The signature, $\sigma$ is computed by hashing
-    /// `msg` into $\mathbb{G}_2$ and multiplying by the secret key,  $H = \sigma \cdot H_2(msg)$.
+    /// `msg` into $\mathbb{G}_2$ and multiplying by the secret key,  $\sigma = sk * H_2(msg)$.
     pub fn sign(&self, msg: &[u8]) -> Signature {
         Signature(self.0.sign(msg, &[], &[]))
     }
@@ -90,14 +90,14 @@ impl SigningKey {
     }
 }
 
-/// Create a `PublicKey` from a secret key, by returning $sk\cdot G_1$.
+/// Create a `PublicKey` from a secret key, by returning $sk* G_1$.
 impl From<&SigningKey> for PublicKey {
     fn from(sk: &SigningKey) -> Self {
         Self(sk.0.sk_to_pk())
     }
 }
 
-/// Create a `ProofOfPossession` from a secret key, by returning $sk\cdot H_2(b"PoP")$.
+/// Create a `ProofOfPossession` from a secret key, by returning $sk* H_2(b"PoP")$.
 impl From<&SigningKey> for ProofOfPossession {
     fn from(sk: &SigningKey) -> Self {
         ProofOfPossession(sk.0.sign(b"PoP", &[], &[]))
@@ -114,10 +114,21 @@ impl From<&SigningKey> for PublicKeyPoP {
 
 impl PublicKeyPoP {
     /// Verify the proof of possession with respect to the associated public key, by checking that
-    /// $e(pk, H_2(b"PoP")) = e(G_1, PoP)$.
+    /// $e(pk, H_2(b"PoP")) = e(G_1, \texttt{self})$, where `self` is the proof of possession.
     ///
     /// # Error
     /// Returns `InvalidPoP` in case the proof is invalid.
+    ///
+    /// # Example
+    /// ```
+    /// # use atms::multi_sig::{SigningKey, PublicKeyPoP};
+    /// # use rand_core::OsRng;
+    /// # fn main() {
+    /// let sk = SigningKey::gen(&mut OsRng);
+    /// let pkpop = PublicKeyPoP::from(&sk);
+    /// assert!(pkpop.verify().is_ok());
+    /// # }
+    /// ```
     pub fn verify(&self) -> Result<PublicKey, AtmsError> {
         if self.1 .0.verify(false, b"PoP", &[], &[], &self.0 .0, false) == BLST_ERROR::BLST_SUCCESS
         {
@@ -126,7 +137,12 @@ impl PublicKeyPoP {
         Err(AtmsError::InvalidPoP)
     }
 
-    /// Convert to a byte string.
+    /// Convert to a 144 byte string.
+    ///
+    /// # Layout
+    /// The layout of a `PublicKeyPoP` encoding is
+    /// * Public key
+    /// * Proof of Possession
     pub fn to_bytes(&self) -> [u8; 144] {
         let mut pkpop_bytes = [0u8; 144];
         pkpop_bytes[..48].copy_from_slice(&self.0.to_bytes());
@@ -265,6 +281,19 @@ impl Signature {
     ///
     /// # Error
     /// Function returns an error if the signature is invalid.
+    ///
+    /// # Example
+    /// ```
+    /// # use atms::multi_sig::{SigningKey, PublicKey};
+    /// # use rand_core::OsRng;
+    /// # fn main() {
+    /// let msg = b".";
+    /// let sk = SigningKey::gen(&mut OsRng);
+    /// let pk = PublicKey::from(&sk);
+    /// let sig = sk.sign(msg);
+    /// assert!(sig.verify(&pk, msg).is_ok());
+    /// # }
+    /// ```
     pub fn verify(&self, pk: &PublicKey, msg: &[u8]) -> Result<(), AtmsError> {
         blst_err_to_atms(self.0.verify(false, msg, &[], &[], &pk.0, false))
     }

@@ -16,5 +16,5 @@ pub mod multi_sig;
 
 pub use crate::{
     error::AtmsError,
-    merkle_tree::{MerkleTree, Path},
+    merkle_tree::{MerkleTree, MerkleTreeCommitment, Path},
 };

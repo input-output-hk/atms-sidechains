@@ -15,9 +15,6 @@
 //! to be larger than the threshold. Note that $Ps \subseteq Es$. Denote with $vk_i$ for $i \in Es$
 //! the verification keys of all participants, and $\sigma_i$ for $i\in Ps$ the signatures produced
 //! by the participating users.
-//!
-//! # Example
-//! The following is an example of usage using the MSP signature scheme.
 
 #![allow(clippy::type_complexity)]
 
@@ -37,7 +34,9 @@ use std::{
 
 /// An ATMS aggregate key, `Avk`, contains a vector commitment of all eligible signers, and the
 /// aggregated key. Any third party with access to the public keys from all eligible signers can
-/// generate an aggregate key as follows. Let $\mathcal{VK} = \lbrace vk_i\rbrace_{i\in Es}$.
+/// generate an aggregate key.
+///
+/// Let $\mathcal{VK} = \lbrace vk_i\rbrace_{i\in Es}$.
 ///
 /// $$ avk = \left(\sum_{i\in Es}vk_i, \langle \mathcal{VK}\rangle\right) $$
 ///
@@ -74,6 +73,34 @@ where
 {
     /// In order to verify the correctness of a key aggregation, one simply recomputes the aggregation
     /// for a given set, and checks that it matches the expected value.
+    /// # Error
+    /// The function returns `AtmsError::InvalidPoP` if one of the proofs of possession is invalid,
+    /// and `AtmsError::RegisterExistingKey` if the input tuple contains a repeated key.
+    ///
+    /// # Example
+    /// ```
+    /// # use atms::multi_sig::{PublicKeyPoP, SigningKey};
+    /// # use atms::aggregation::Registration;
+    /// # use atms::AtmsError;
+    /// # use blake2::Blake2b;
+    /// # use rand_core::OsRng;
+    /// # fn main() -> Result<(), AtmsError> {
+    /// let n = 10; // nr of eligible signers
+    /// let threshold: usize = n - ((n - 1) / 3);
+    /// let mut rng = OsRng;
+    ///
+    /// let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
+    /// for _ in 1..=n {
+    ///     let sk = SigningKey::gen(&mut rng);
+    ///     let pkpop = PublicKeyPoP::from(&sk);
+    ///     keyspop.push(pkpop);
+    /// }
+    ///
+    /// let atms_registration = Registration::<Blake2b>::new(&keyspop)?;
+    /// assert!(atms_registration.to_avk().check(&keyspop).is_ok());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn check(&self, keys: &[PublicKeyPoP]) -> Result<(), AtmsError> {
         let akey2: Registration<H> = Registration::new(keys)?;
         if self == &akey2.to_avk() {
@@ -82,7 +109,14 @@ where
         Err(AtmsError::InvalidAggregation)
     }
 
-    /// Convert `Avk` to byte string.
+    /// Convert `Avk` to byte string of size $48 + 8 + S$ where $S$ is the output size of the
+    /// hash function.
+    ///
+    /// # Layout
+    /// The layout of an `Avk` is
+    /// * Aggregate key
+    /// * Nr of parties
+    /// * Merkle tree commitment
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::new();
         result.extend_from_slice(&self.aggregate_key.to_bytes());
@@ -204,6 +238,7 @@ where
     /// Convert a registration into a byte array. Not exposing serde of registration because
     /// passing the keys with PoP is cheaper and safer. This way we guarantee that a Registration
     /// can only be generated with valid keys.
+    #[allow(dead_code)]
     fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::new();
         result.extend_from_slice(&self.aggregate_key.to_bytes());
@@ -223,6 +258,7 @@ where
     ///
     /// # Error
     /// Fails if the byte representation is an incorrect Registration.
+    #[allow(dead_code)]
     fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
         let aggregate_key = PublicKey::from_bytes(bytes)?;
         let mut len_bytes = [0u8; 8];
@@ -321,7 +357,7 @@ where
     /// 1. Verify that all public keys are different, and that they belong to the commitment $\langle
     ///    \mathcal{VK}\rangle$ in $avk$ using the proofs of membership.
     /// 2. Compute $avk'$ by dividing the aggregate key of non-signers, i.e.
-    ///    $$avk' = avk - \sum_{i\in Es\setminus Ps}\widehat{vk_i}}$$
+    ///    $$avk' = avk - \sum_{i\in Es\setminus Ps}\widehat{vk_i}$$
     /// 3. Return valid if an only if $d\geq t$ and $\sigma$ validates with respect to $avk'$.
     ///
     /// # Error
@@ -330,6 +366,49 @@ where
     /// * `AtmsError::InvalidMerkleProof` if the proof of membership is invalid, and
     /// * `AtmsError::TooMuchOutstandingSigners` if there are not enough signers.
     ///
+    /// # Example
+    /// ```
+    /// # use atms::multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey};
+    /// # use atms::aggregation::{AggregateSig, Registration};
+    /// # use atms::AtmsError;
+    /// # use blake2::Blake2b;
+    /// # use rand_core::OsRng;
+    /// # fn main() -> Result<(), AtmsError> {
+    /// let n = 10; // number of parties
+    /// let subset_is = [1, 2, 3, 5, 6, 7, 9];
+    /// let threshold: usize = n - ((n - 1) / 3);
+    /// let msg = b"Did you know that Charles Babbage broke the Vigenere cipher?";
+    /// let mut rng = OsRng;
+    ///
+    /// let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
+    /// let mut signatures: Vec<(PublicKey, Signature)> = Vec::new();
+    /// for _ in 1..=n {
+    ///     let sk = SigningKey::gen(&mut rng);
+    ///     let pk = PublicKey::from(&sk);
+    ///     let pkpop = PublicKeyPoP::from(&sk);
+    ///     let sig = sk.sign(msg);
+    ///     assert!(sig.verify(&pk, msg).is_ok());
+    ///     keyspop.push(pkpop);
+    ///     signatures.push((pk, sig));
+    /// }
+    ///
+    /// let atms_registration = Registration::<Blake2b>::new(&keyspop)?;
+    /// let avk = atms_registration.to_avk();
+    /// assert!(avk.check(&keyspop).is_ok());
+    ///
+    /// let subset = subset_is
+    ///     .iter()
+    ///     .map(|i| {
+    ///         signatures[i % n]
+    ///     })
+    ///     .collect::<Vec<_>>();
+    ///
+    /// let mut aggr_sig = AggregateSig::new(&atms_registration, &subset, msg).expect("Signatures should be valid");
+    ///
+    /// assert!(aggr_sig.verify(msg, &avk, threshold).is_ok());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn verify(&self, msg: &[u8], avk: &Avk<H>, threshold: usize) -> Result<(), AtmsError> {
         // Check duplicates by building this set of
         // non-signing keys
@@ -369,7 +448,16 @@ where
         )
     }
 
-    /// Convert to a byte string.
+    /// Convert to a byte string of size $8 + b * 8 + 96 + t * (48 + P)$, where $b$ is boolean which is
+    /// 1 if there are non-signers, $t$ is the number of non-signers, and $P$ is the size of the proof
+    /// of membership.
+    ///
+    /// # Layout
+    /// The layout of an `AggregateSignature` is
+    /// * Number of non-signers
+    /// * Size of membership proofs
+    /// * Aggregate signature
+    /// * $t$ public keys and their proofs of membership in the merkle commitment
     pub fn to_bytes(&self) -> Vec<u8> {
         // todo: lets do with_capacity here
         let mut aggregate_sig_bytes = Vec::new();

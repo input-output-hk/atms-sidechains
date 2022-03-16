@@ -1,25 +1,6 @@
 //! For now the functionality we require out of merkle trees is quite simple, so it does not
 //! make sense to include an additional dependency, such as
 //! [`merkletree`](https://docs.rs/merkletree/0.21.0/merkletree/).
-//!
-//! # Example
-//! ```
-//! # use rand_core::{OsRng, RngCore};
-//! # use atms::MerkleTree;
-//! # use blake2::Blake2b;
-//! # fn main() {
-//! let mut rng = OsRng::default();
-//! let mut keys = Vec::with_capacity(32);
-//! for _ in 0..32 {
-//!     let mut leaf = [0u8; 32];
-//!     rng.fill_bytes(&mut leaf);
-//!     keys.push(leaf.to_vec());
-//! }
-//! let mt = MerkleTree::<Blake2b>::create(&keys);
-//! let path = mt.get_path(3);
-//! assert!(mt.to_commitment().check(&keys[3], &path).is_ok());
-//!
-//! # }
 use crate::error::MerkleTreeError;
 use digest::{Digest, FixedOutput};
 use std::fmt::Debug;
@@ -36,7 +17,15 @@ pub struct Path<D: Digest + FixedOutput> {
 }
 
 impl<D: Digest + FixedOutput> Path<D> {
-    /// Convert the `Path` into byte representation.
+    /// Convert the `Path` into byte representation. The size of a path is
+    /// $8 + 8 + n * S$ where $n$ is the number of hashes in the path and
+    /// $S$ the output size of the digest function.
+    ///
+    /// # Layout
+    /// The layour of a `Path` is
+    /// * Length of path
+    /// * Index of element
+    /// * $n$ hash outputs
     // todo: if we want to further reduce the path size, we can use smaller ints for length and index
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::new();
@@ -83,7 +72,34 @@ pub struct MerkleTreeCommitment<D: Digest> {
 }
 
 impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
-    /// Check an inclusion proof that `val` is part of the tree.
+    /// Check an inclusion proof that `val` is part of the tree by traveling the whole path
+    /// until the root.
+    ///
+    /// # Error
+    /// Returns an error if the path is invalid.
+    ///
+    /// # Example
+    /// ```
+    /// # use rand_core::{OsRng, RngCore};
+    /// # use atms::MerkleTree;
+    /// # use blake2::Blake2b;
+    /// # fn main() {
+    /// let mut rng = OsRng::default();
+    /// // We generate the keys.
+    /// let mut keys = Vec::with_capacity(32);
+    /// for _ in 0..32 {
+    ///     let mut leaf = [0u8; 32];
+    ///     rng.fill_bytes(&mut leaf);
+    ///     keys.push(leaf.to_vec());
+    /// }
+    /// // Compute the Merkle tree of the keys.
+    /// let mt = MerkleTree::<Blake2b>::create(&keys);
+    /// // Compute the path of key in position 3.
+    /// let path = mt.get_path(3);
+    /// // Verify the proof of membership with respect to the merkle commitment.
+    /// assert!(mt.to_commitment().check(&keys[3], &path).is_ok());
+    ///
+    /// # }
     pub fn check(&self, val: &[u8], proof: &Path<D>) -> Result<(), MerkleTreeError> {
         let mut idx = proof.index;
 
@@ -104,7 +120,8 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         Err(MerkleTreeError::InvalidPath)
     }
 
-    /// Convert a `MerkleTreeCommitment` to a byte array
+    /// Convert a `MerkleTreeCommitment` to a byte array of $S$ bytes, where $S$ is the output
+    /// size of the hash function.
     pub fn to_bytes(&self) -> Vec<u8> {
         self.value.clone()
     }
@@ -125,14 +142,14 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MerkleTree<D: Digest + FixedOutput> {
     /// The nodes are stored in an array heap:
-    /// nodes[0] is the root,
-    /// the parent of nodes[i] is nodes[(i-1)/2]
-    /// the children of nodes[i] are {nodes[2i + 1], nodes[2i + 2]}
-    /// All nodes have size Output<D>::output_size(), even leafs (which are padded with
+    /// `nodes[0]` is the root,
+    /// the parent of `nodes[i]` is `nodes[(i-1)/2]`
+    /// the children of `nodes[i]` are `{nodes[2i + 1], nodes[2i + 2]}`
+    /// All nodes have size `Output<D>::output_size()`, even leafs (which are padded with
     /// zeroes).
     nodes: Vec<Vec<u8>>,
 
-    /// The leaves begin at nodes[leaf_off]
+    /// The leaves begin at `nodes[leaf_off]`
     leaf_off: usize,
 
     /// Number of leaves cached here
@@ -186,12 +203,12 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         }
     }
 
-    /// Get the root of the tree
+    /// Get the root of the tree.
     pub fn root(&self) -> Vec<u8> {
         self.nodes[0].clone()
     }
 
-    /// Get a path (hashes of siblings of the path to the root node
+    /// Get a path (hashes of siblings of the path to the root node)
     /// for the `i`th value stored in the tree.
     /// Requires `i < self.n`
     pub fn get_path(&self, i: usize) -> Path<D> {
@@ -225,7 +242,8 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         self.leaf_off + i
     }
 
-    /// Convert a `MerkleTree` into a byte string
+    /// Convert a `MerkleTree` into a byte string, containint $8 + n * S$ where $n$ is the
+    /// number of nodes and $S$ the output size of the hash function.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::new();
         result.extend_from_slice(&self.n.to_be_bytes());
