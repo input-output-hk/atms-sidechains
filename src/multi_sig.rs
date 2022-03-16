@@ -420,11 +420,11 @@ mod tests {
         {
             let mut rng = ChaCha20Rng::from_seed(seed);
             let mut pks = Vec::new();
-            let mut underlying_points = Vec::new();
+            let mut underlying_points = Vec::with_capacity(nr_parties);
             for _ in 0..nr_parties {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
-                pks.push(pk.clone());
+                pks.push(pk);
                 underlying_points.push(pk.0.serialize());
             }
 
@@ -433,8 +433,8 @@ mod tests {
             unsafe {
                 let mut aggr_point = blst_p1::default();
                 let mut temp_point = blst_p1_affine::default();
-                for i in 0..nr_parties {
-                    blst_p1_deserialize(&mut temp_point, &underlying_points[i][0]);
+                for point in underlying_points.iter() {
+                    blst_p1_deserialize(&mut temp_point, &point[0]);
                     blst_p1_add_affine(&mut aggr_point, &aggr_point, &temp_point);
                 }
 
@@ -483,11 +483,11 @@ mod tests {
         {
             let mut rng = ChaCha20Rng::from_seed(seed);
             let mut sigs = Vec::new();
-            let mut underlying_points = Vec::new();
+            let mut underlying_points = Vec::with_capacity(nr_parties);
             for _ in 0..nr_parties {
                 let sk = SigningKey::gen(&mut rng);
                 let sig = sk.sign(b"dummy message");
-                sigs.push(sig.clone());
+                sigs.push(sig);
                 underlying_points.push(sig.0.serialize());
             }
 
@@ -496,8 +496,8 @@ mod tests {
             unsafe {
                 let mut aggr_point = blst_p2::default();
                 let mut temp_point = blst_p2_affine::default();
-                for i in 0..nr_parties {
-                    blst_p2_deserialize(&mut temp_point, &underlying_points[i][0]);
+                for point in underlying_points.iter() {
+                    blst_p2_deserialize(&mut temp_point, &point[0]);
                     blst_p2_add_affine(&mut aggr_point, &aggr_point, &temp_point);
                 }
 
@@ -519,7 +519,7 @@ mod tests {
 
             let mut result = Ordering::Equal;
             for (i, j) in pk_1_bytes.iter().zip(pk_2_bytes.iter()) {
-                result = i.cmp(&j);
+                result = i.cmp(j);
                 if result != Ordering::Equal {
                     break;
                 }
@@ -534,11 +534,11 @@ mod tests {
                 match SigningKey::from_bytes(&sk) {
                     Ok(_) => {
                         blst_scalar_from_bendian(&mut raw_scalar, &sk[0]);
-                        assert_eq!(blst_scalar_fr_check(&raw_scalar), true);
+                        assert!(blst_scalar_fr_check(&raw_scalar));
                     }
                     Err(_) => {
                         blst_scalar_from_bendian(&mut raw_scalar, &sk[0]);
-                        assert_eq!(blst_scalar_fr_check(&raw_scalar), false);
+                        assert!(!blst_scalar_fr_check(&raw_scalar));
                     },
                 };
             }

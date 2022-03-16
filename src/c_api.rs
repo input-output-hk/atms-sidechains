@@ -2,8 +2,8 @@
 //! is null. Other error codes are function dependent.
 use crate::{
     aggregation::{AggregateSig, Registration},
+    error::AtmsError,
     multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey},
-    error::AtmsError
 };
 use rand_core::OsRng;
 use std::{ffi::CStr, os::raw::c_char};

@@ -511,7 +511,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{PublicKey, PublicKeyPoP, Signature, SigningKey};
+    use crate::multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey};
     use blake2::Blake2b;
     use proptest::prelude::*;
     use rand::seq::SliceRandom;
@@ -632,7 +632,7 @@ mod tests {
             }
 
             for pk in pks.iter().skip(num_sigs as usize) {
-                aggr_pk = aggr_pk - pk.clone();
+                aggr_pk = aggr_pk - *pk;
             }
 
             let aggr_sig: Signature = sigs.iter().sum();
@@ -715,7 +715,7 @@ mod tests {
             }
 
             if repeated_reg == 1 {
-                keyspop.push(keyspop[0].clone());
+                keyspop.push(keyspop[0]);
             }
 
             if invalid_pop == 1 {
@@ -781,17 +781,17 @@ mod tests {
 
             let false_susbset: [(PublicKey, Signature); 1] = [signatures[false_mk_proof % n]];
             let false_aggr = AggregateSig::new(&atms_registration, &false_susbset, &msg).expect("Signatures should be valid");
-            if aggr_sig.keys_proofs.len() != 0 {
+            if !aggr_sig.keys_proofs.is_empty() {
                 aggr_sig.keys_proofs[0].1 = false_aggr.keys_proofs[0].1.clone();
             } else if aggr_sig.keys_proofs.len() > 1 && repeate_non_signer == 1 {
-                aggr_sig.keys_proofs[0].0 = false_aggr.keys_proofs[1].0.clone();
+                aggr_sig.keys_proofs[0].0 = false_aggr.keys_proofs[1].0;
                 aggr_sig.keys_proofs[0].1 = false_aggr.keys_proofs[1].1.clone();
             }
 
             match aggr_sig.verify(&msg, &avk, threshold) {
                 Ok(()) => {
                     assert!(subset.len() >= threshold);
-                    if aggr_sig.keys_proofs.len() != 0 {
+                    if !aggr_sig.keys_proofs.is_empty() {
                         assert_eq!(aggr_sig.keys_proofs[0].0, false_aggr.keys_proofs[0].0);
                     }
                 },

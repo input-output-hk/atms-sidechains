@@ -1,4 +1,8 @@
-use atms::{AggregateSig, AtmsError, PublicKey, PublicKeyPoP, Registration, SigningKey};
+use atms::{
+    aggregation::{AggregateSig, Registration},
+    multi_sig::{PublicKey, PublicKeyPoP, SigningKey},
+    AtmsError,
+};
 use blake2::Blake2b;
 use rand::prelude::IteratorRandom;
 use rand_chacha::ChaCha20Rng;
