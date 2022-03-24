@@ -5,6 +5,7 @@ use crate::error::MerkleTreeError;
 use digest::{Digest, FixedOutput};
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use crate::AtmsError;
 
 /// Path of hashes from root to leaf in a Merkle Tree. Contains all hashes on the path, and the index
 /// of the leaf.
@@ -13,6 +14,16 @@ use std::marker::PhantomData;
 pub struct Path<D: Digest + FixedOutput> {
     pub(crate) values: Vec<Vec<u8>>,
     index: usize,
+    hasher: PhantomData<D>,
+}
+
+/// Path for a batch of indices
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BatchPath<D: Digest + FixedOutput> {
+    values: Vec<Vec<u8>>,
+    indices: Vec<usize>,
+    /// This is required, as the proof itself does not disclose the height (or number of leaves) in the tree
+    leafs_off: usize,
     hasher: PhantomData<D>,
 }
 
@@ -120,6 +131,74 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         Err(MerkleTreeError::InvalidPath)
     }
 
+    pub fn check_batched(&self, batch_val: Vec<Vec<u8>>, proof: &BatchPath<D>) -> Result<(), MerkleTreeError> {
+        if batch_val.len() != proof.indices.len() {
+            return Err(MerkleTreeError::IndexOutOfBounds); // todo: not index out of bounds
+        }
+        let mut ordered_indices: Vec<usize> = proof.indices
+            .clone()
+            .into_iter()
+            .map(|i| i + proof.leafs_off)
+            .collect();
+        ordered_indices.sort();
+
+        let mut idx = ordered_indices[0];
+        let mut leaves = batch_val.clone();
+        let mut values = proof.values.clone();
+
+        while idx > 0 {
+            let mut new_hashes = Vec::new();
+            let mut new_indices = Vec::new();
+            let mut i = 0;
+            idx = parent(idx);
+            while i < ordered_indices.len() {
+                new_indices.push(parent(ordered_indices[i]));
+                if ordered_indices[i]&1 == 0 {
+                    new_hashes.push(
+                        D::new()
+                            .chain(&values[0])
+                            .chain(&leaves[i])
+                            .finalize()
+                            .to_vec()
+                    );
+
+                    values.remove(0);
+                } else {
+                    let sibling = sibling(ordered_indices[i]);
+                    if i < ordered_indices.len() - 1 && ordered_indices[i + 1] == sibling {
+                        new_hashes.push(
+                            D::new()
+                                .chain(&leaves[i])
+                                .chain(&leaves[i+1])
+                                .finalize()
+                                .to_vec()
+                        );
+                        i += 1;
+                    } else {
+                        new_hashes.push(
+                            D::new()
+                                .chain(&leaves[i])
+                                .chain(&values[0])
+                                .finalize()
+                                .to_vec()
+                        );
+                        values.remove(0);
+                    }
+                }
+                i += 1;
+            }
+            leaves = new_hashes.clone();
+            ordered_indices = new_indices.clone();
+        }
+
+        assert_eq!(leaves.len(), 1);
+
+        if leaves[0] == self.value {
+            return Ok(());
+        }
+        Err(MerkleTreeError::InvalidPath)
+    }
+
     /// Convert a `MerkleTreeCommitment` to a byte array of $S$ bytes, where $S$ is the output
     /// size of the hash function.
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -148,10 +227,8 @@ pub struct MerkleTree<D: Digest + FixedOutput> {
     /// All nodes have size `Output<D>::output_size()`, even leafs (which are padded with
     /// zeroes).
     nodes: Vec<Vec<u8>>,
-
     /// The leaves begin at `nodes[leaf_off]`
     leaf_off: usize,
-
     /// Number of leaves cached here
     n: usize,
     /// Phantom type to link the tree with its hasher
@@ -234,6 +311,55 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         Path {
             values: proof,
             index: i,
+            hasher: Default::default(),
+        }
+    }
+
+    /// Get a path for a batch of leaves.
+    pub fn get_batched_path(&self, indices: Vec<usize>) -> BatchPath<D> {
+        for i in &indices {
+            assert!(
+                i < &self.n,
+                "Proof index out of bounds: asked for {} out of {}",
+                i,
+                self.n
+            );
+        }
+
+        let mut ordered_indices: Vec<usize> = indices
+            .clone()
+            .into_iter()
+            .map(|i| self.idx_of_leaf(i))
+            .collect();
+
+        ordered_indices.sort();
+
+        let mut idx = ordered_indices[0];
+        let mut proof = Vec::new();
+
+
+        while idx > 0 {
+            let mut new_indices = Vec::new();
+            let mut i = 0;
+            idx = parent(idx);
+            while i < ordered_indices.len() {
+                new_indices.push(parent(ordered_indices[i]));
+                let sibling = sibling(ordered_indices[i]);
+                if i < ordered_indices.len() - 1 && ordered_indices[i + 1] == sibling {
+                    i+=1;
+                } else {
+                    proof.push(self.nodes[sibling].clone());
+                }
+                i+=1;
+            }
+
+            ordered_indices = new_indices.clone();
+        }
+
+        BatchPath {
+            values: proof,
+            indices: indices.clone(),
+            leafs_off: self.leaf_off,
             hasher: Default::default(),
         }
     }
@@ -377,5 +503,18 @@ mod tests {
             let path = Path{values: proof, index: idx, hasher: PhantomData::<Blake2b>::default()};
             assert!(t.to_commitment().check(&values[0], &path).is_err());
         }
+    }
+
+    #[test]
+    fn merkle_batch_verif() {
+        let leafs = [vec![0u8], vec![1u8], vec![2u8], vec![3u8], vec![4u8], vec![5u8], vec![6u8], vec![07u8]];
+        let mt = MerkleTree::<Blake2b>::create(&leafs);
+
+        let batch_opening = vec![0, 3, 5, 7];
+        let batch_values: Vec<Vec<u8>> = batch_opening.iter().map(|&v| [v as u8].to_vec()).collect();
+        let batch_proof = mt.get_batched_path(batch_opening);
+
+        let mt_commitment = mt.to_commitment();
+        mt_commitment.check_batched(batch_values, &batch_proof);
     }
 }

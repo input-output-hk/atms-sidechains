@@ -8,6 +8,8 @@
 //! library by supranational which implements BLS signatures over curve
 //! BLS12-381.
 
+extern crate core;
+
 pub mod aggregation;
 mod c_api;
 mod error;
