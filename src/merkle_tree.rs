@@ -1,6 +1,4 @@
-//! For now the functionality we require out of merkle trees is quite simple, so it does not
-//! make sense to include an additional dependency, such as
-//! [`merkletree`](https://docs.rs/merkletree/0.21.0/merkletree/).
+//! Merkle tree module, exposing several ops on Merkle Trees.
 use crate::error::MerkleTreeError;
 use digest::{Digest, FixedOutput};
 use std::fmt::Debug;
@@ -21,8 +19,6 @@ pub struct Path<D: Digest + FixedOutput> {
 pub struct BatchPath<D: Digest + FixedOutput> {
     values: Vec<Vec<u8>>,
     indices: Vec<usize>,
-    /// This is required, as the proof itself does not disclose the height (or number of leaves) in the tree
-    leafs_off: usize,
     hasher: PhantomData<D>,
 }
 
@@ -77,7 +73,9 @@ impl<D: Digest + FixedOutput> Path<D> {
 pub struct MerkleTreeCommitment<D: Digest> {
     /// Root of the merkle tree, representing the commitment of all its leaves.
     pub value: Vec<u8>,
-    /// Phantom type to link commitment to its hasher
+    /// Number of committed leaves, which will always be padded to the next power of two.
+    pub nr_leaves: usize,
+    /// Phantom type to link commitment to its hasher.
     hasher: PhantomData<D>,
 }
 
@@ -137,16 +135,13 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         let mut ordered_indices: Vec<usize> = proof.indices
             .clone()
             .into_iter()
-            .map(|i| i + proof.leafs_off)
+            .map(|i| i + self.nr_leaves - 1)
             .collect();
         ordered_indices.sort();
 
         let mut idx = ordered_indices[0];
         // First we need to pad the values
-        let mut leaves = vec![vec![0u8; D::output_size()]; batch_val.len()];;
-        for i in 0..batch_val.len() {
-            leaves[i][..batch_val[i].len()].copy_from_slice(&batch_val[i]);
-        }
+        let mut leaves = batch_val.clone();
 
         let mut values = proof.values.clone();
 
@@ -203,17 +198,24 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         Err(MerkleTreeError::InvalidPath)
     }
 
-    /// Convert a `MerkleTreeCommitment` to a byte array of $S$ bytes, where $S$ is the output
+    /// Convert a `MerkleTreeCommitment` to a byte array of $S + 8$ bytes, where $S$ is the output
     /// size of the hash function.
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.value.clone()
+        let mut result = Vec::with_capacity(D::output_size() + 8);
+        result.extend_from_slice(&self.nr_leaves.to_be_bytes());
+        result.extend_from_slice(&self.value);
+        result
     }
 
     /// Convert a byte array into a `MerkleTreeCommitment`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, MerkleTreeError> {
-        if bytes.len() == D::output_size() {
+        let mut usize_bytes = [0u8; 8];
+        usize_bytes.copy_from_slice(&bytes[..8]);
+        let nr_leaves = usize::from_be_bytes(usize_bytes);
+        if bytes[8..].len() == D::output_size() {
             return Ok(Self {
                 value: bytes.to_vec(),
+                nr_leaves,
                 hasher: PhantomData::default(),
             });
         }
@@ -241,31 +243,30 @@ pub struct MerkleTree<D: Digest + FixedOutput> {
 
 impl<D: Digest + FixedOutput> MerkleTree<D> {
     /// Provide a non-empty list of leaves, `create` generate its corresponding `MerkleTree`.
+    /// If the merkle tree is incomplete, i.e. if `leaves.len()` is not a power of two, we
+    /// pad `leaves` to the next power of two with zero vectors of size `D::output_size()`.
     pub fn create(leaves: &[Vec<u8>]) -> MerkleTree<D> {
-        let n = leaves.len();
+        let n = leaves.len().next_power_of_two();
         assert!(n > 0, "MerkleTree::create() called with no leaves");
 
-        let num_nodes = n + n.next_power_of_two() - 1;
+        let num_nodes = n + n - 1;
 
-        let mut nodes = vec![vec![0u8; D::output_size()]; num_nodes];
+        let mut nodes = vec![vec![0u8]; num_nodes];
 
-        for i in 0..n {
-            nodes[num_nodes - n + i][..leaves[i].len()].copy_from_slice(&leaves[i]);
+        for i in 0..leaves.len() {
+            nodes[num_nodes - n + i] = leaves[i].clone();
+        }
+
+        for i in leaves.len()..n.next_power_of_two() {
+            nodes[num_nodes - n + i] = vec![0u8; D::output_size()];
         }
 
         for i in (0..num_nodes - n).rev() {
-            let z = vec![0u8; D::output_size()];
-            let left = if left_child(i) < num_nodes {
-                nodes[left_child(i)].clone()
-            } else {
-                z
-            };
-            let right = if right_child(i) < num_nodes {
-                nodes[right_child(i)].clone()
-            } else {
-                left.clone()
-            };
-            nodes[i] = D::new().chain(left).chain(right).finalize().to_vec();
+            nodes[i] = D::new()
+                .chain(nodes[left_child(i)].clone())
+                .chain(nodes[right_child(i)].clone())
+                .finalize()
+                .to_vec();
         }
 
         Self {
@@ -280,6 +281,7 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
     pub fn to_commitment(&self) -> MerkleTreeCommitment<D> {
         MerkleTreeCommitment {
             value: self.nodes[0].clone(),
+            nr_leaves: self.n,
             hasher: self.hasher,
         }
     }
@@ -363,7 +365,6 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         BatchPath {
             values: proof,
             indices: indices.clone(),
-            leafs_off: self.leaf_off,
             hasher: Default::default(),
         }
     }
@@ -514,7 +515,7 @@ mod tests {
         let leafs = [vec![0u8], vec![1u8], vec![2u8], vec![3u8], vec![4u8], vec![5u8], vec![6u8], vec![07u8]];
         let mt = MerkleTree::<Blake2b>::create(&leafs);
 
-        let batch_opening = vec![0, 3, 5, 7];
+        let batch_opening = vec![0, 3, 5, 6];
         let batch_values: Vec<Vec<u8>> = batch_opening.iter().map(|&v| [v as u8].to_vec()).collect();
         let batch_proof = mt.get_batched_path(batch_opening);
 
