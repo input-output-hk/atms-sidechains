@@ -689,21 +689,138 @@
 <span id="687">687</span>
 <span id="688">688</span>
 <span id="689">689</span>
-</pre><pre class="rust"><code><span class="doccomment">//! Ad-Hoc Threshold MultiSignatures (ATMS) implementation.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The implementation in this module is parameterized by the underlying</span>
-<span class="doccomment">//! signature scheme, which will define its own type of key and signature.</span>
-<span class="doccomment">//! The requirements of the unferlying signature scheme is that it provides the</span>
-<span class="doccomment">//! functionality of aggregation both to the public keys as to the signatures.</span>
-<span class="doccomment">//! We use multiplicative notation to represent this binary operation between</span>
-<span class="doccomment">//! two instances.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! For sake of simplicity we omit the `Setup`, `KeyGen`, `Sign` and `Verify` algorithms</span>
-<span class="doccomment">//! from the underlying signature, and refer to the documentation available in the</span>
-<span class="doccomment">//! different multi signatures implementations ([msp](./src/msp),</span>
-<span class="doccomment">//! [MuSig2](./src/examples/atms_musig2), or [naive Schnorr](./src/examples/atms_nsms)).</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Aggregation module, which contains the mechanisms to compute and verify the</span>
+<span class="doccomment">//! aggregate signatures and keys of an ATMS signature protocol.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Notation</span>
+<span class="doccomment">//! An ATMS signature protocol relies on an underlying multi-signature.</span>
+<span class="doccomment">//! For sake of simplicity we omit the `Setup`, `KeyGen`, `Sign` and `Verify` algorithms</span>
+<span class="doccomment">//! from the underlying signature, and refer to the documentation available in the</span>
+<span class="doccomment">//! [multi signatures implementation](./src/multi_sig).</span>
 <span class="doccomment">//! Given a set $S$, denote by $\langle S\rangle$ a Merkle-tree commitment to the set $S$ created</span>
 <span class="doccomment">//! in some fixed deterministic way. We divide the signers into two groups, eligible and</span>
 <span class="doccomment">//! participants. The eligible signers, $Es$ with $|Es| = n$, are all those who are allowed to</span>
@@ -713,44 +830,16 @@
 <span class="doccomment">//! to be larger than the threshold. Note that $Ps \subseteq Es$. Denote with $vk_i$ for $i \in Es$</span>
 <span class="doccomment">//! the verification keys of all participants, and $\sigma_i$ for $i\in Ps$ the signatures produced</span>
 <span class="doccomment">//! by the participating users.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # ATMS protocol</span>
-<span class="doccomment">//! Any third party with access to the public keys from all eligible signers can generate an</span>
-<span class="doccomment">//! aggregate key as follows. Let $\mathcal{VK} = \lbrace vk_i\rbrace_{i\in Es}$.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! $$ avk = \left(\prod_{i\in Es}vk_i, \langle \mathcal{VK}\rangle\right) $$</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! In order to verify the correctness of a key aggregation, one simply recomputes the aggregation</span>
-<span class="doccomment">//! for a given set, and checks that it matches the expected value.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! The signature aggregation can again be performed by any third party. Given $d$ pairs of</span>
-<span class="doccomment">//! signatures with their respective public keys $\lbrace\sigma_i, vk_i\rbrace_{i\in Ps}$, and the remaining</span>
-<span class="doccomment">//! $n-d$ keys of the non signers, $\lbrace\widehat{vk}_i\rbrace _{i\in Es \setminus Ps }$, the aggregator</span>
-<span class="doccomment">//! produces the following aggregate signature</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! $$ \sigma = \left(\sigma_a = \prod_{i\in Ps}\sigma_i, \lbrace\widehat{vk}_i\rbrace _{i\in Es \setminus Ps }, \lbrace\pi _{\widehat{vk_i}}\rbrace _{i\in Es \setminus Ps}\right)$$</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! where $\pi_{\widehat{vk_i}}$ denotes the proof of membership of key $\widehat{vk_i}$ in the merkle</span>
-<span class="doccomment">//! commitment.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Finally, to verify an aggregate signature, the verifier takes as input a message $m$, an</span>
-<span class="doccomment">//! aggregate key $avk$, and a signature $\sigma$ and proceeds as follows:</span>
-<span class="doccomment">//! 1. Verify that all public keys are different, and that they belong to the commitment $\langle</span>
-<span class="doccomment">//!    \mathcal{VK}\rangle$ in $avk$ using the proofs of membership.</span>
-<span class="doccomment">//! 2. Compute $avk&#39;$ by dividing the aggregate key of non-signers, i.e.</span>
-<span class="doccomment">//!    $$avk&#39; = \frac{avk}{\prod_{i\in Es\setminus Ps}\widehat{vk_i}}$$</span>
-<span class="doccomment">//! 3. Return valid if an only if $d\geq t$ and the $\sigma_a$ validates with respect to $avk&#39;$.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Example</span>
-<span class="doccomment">//! The following is an example of usage using the MSP signature scheme.</span>
 
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::type_complexity</span>)]</span>
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">error</span>::{<span class="ident">blst_err_to_atms</span>, <span class="ident">AtmsError</span>},
     <span class="ident">merkle_tree</span>::{<span class="ident">MerkleTreeCommitment</span>, <span class="ident">Path</span>},
-    {<span class="ident">MerkleTree</span>, <span class="ident">PublicKey</span>, <span class="ident">PublicKeyPoP</span>, <span class="ident">Signature</span>},
+    <span class="ident">multi_sig</span>::{<span class="ident">PublicKey</span>, <span class="ident">PublicKeyPoP</span>, <span class="ident">Signature</span>},
+    <span class="ident">MerkleTree</span>,
 };
+
 <span class="kw">use</span> <span class="ident">blake2::Digest</span>;
 <span class="kw">use</span> <span class="ident">digest::FixedOutput</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{
@@ -758,7 +847,18 @@
     <span class="ident">fmt::Debug</span>,
 };
 
-<span class="doccomment">/// An ATMS aggregate key, `Avk`, contains a merkle tree commitment, and the aggregated key</span>
+<span class="doccomment">/// An ATMS aggregate key, `Avk`, contains a vector commitment of all eligible signers, and the</span>
+<span class="doccomment">/// aggregated key. Any third party with access to the public keys from all eligible signers can</span>
+<span class="doccomment">/// generate an aggregate key.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Let $\mathcal{VK} = \lbrace vk_i\rbrace_{i\in Es}$.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// $$ avk = \left(\sum_{i\in Es}vk_i, \langle \mathcal{VK}\rangle\right) $$</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// In order to generate an `Avk`, it is necessary to previously produce a valid registration</span>
+<span class="doccomment">/// of all eligible signers. This guarantees that an `Avk` is only generated with keys</span>
+<span class="doccomment">/// with a valid proof of possession. Otherwise, an adversary could produce what is known as</span>
+<span class="doccomment">/// the &quot;rogue key attack&quot;.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Avk</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>
 <span class="kw">where</span>
@@ -786,7 +886,36 @@
 <span class="kw">where</span>
     <span class="ident">H</span>: <span class="ident">Digest</span> <span class="op">+</span> <span class="ident">FixedOutput</span>,
 {
-    <span class="doccomment">/// Check that this aggregation is derived from the given sequence of valid keys.</span>
+    <span class="doccomment">/// In order to verify the correctness of a key aggregation, one simply recomputes the aggregation</span>
+    <span class="doccomment">/// for a given set, and checks that it matches the expected value.</span>
+    <span class="doccomment">/// # Error</span>
+    <span class="doccomment">/// The function returns `AtmsError::InvalidPoP` if one of the proofs of possession is invalid,</span>
+    <span class="doccomment">/// and `AtmsError::RegisterExistingKey` if the input tuple contains a repeated key.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Example</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// # use atms::multi_sig::{PublicKeyPoP, SigningKey};</span>
+    <span class="doccomment">/// # use atms::aggregation::Registration;</span>
+    <span class="doccomment">/// # use atms::AtmsError;</span>
+    <span class="doccomment">/// # use blake2::Blake2b;</span>
+    <span class="doccomment">/// # use rand_core::OsRng;</span>
+    <span class="doccomment">/// # fn main() -&gt; Result&lt;(), AtmsError&gt; {</span>
+    <span class="doccomment">/// let n = 10; // nr of eligible signers</span>
+    <span class="doccomment">/// let threshold: usize = n - ((n - 1) / 3);</span>
+    <span class="doccomment">/// let mut rng = OsRng;</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut keyspop: Vec&lt;PublicKeyPoP&gt; = Vec::new();</span>
+    <span class="doccomment">/// for _ in 1..=n {</span>
+    <span class="doccomment">///     let sk = SigningKey::gen(&amp;mut rng);</span>
+    <span class="doccomment">///     let pkpop = PublicKeyPoP::from(&amp;sk);</span>
+    <span class="doccomment">///     keyspop.push(pkpop);</span>
+    <span class="doccomment">/// }</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let atms_registration = Registration::&lt;Blake2b&gt;::new(&amp;keyspop)?;</span>
+    <span class="doccomment">/// assert!(atms_registration.to_avk().check(&amp;keyspop).is_ok());</span>
+    <span class="doccomment">/// # Ok(())</span>
+    <span class="doccomment">/// # }</span>
+    <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">keys</span>: <span class="kw-2">&amp;</span>[<span class="ident">PublicKeyPoP</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AtmsError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">akey2</span>: <span class="ident">Registration</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Registration::new</span>(<span class="ident">keys</span>)<span class="question-mark">?</span>;
         <span class="kw">if</span> <span class="self">self</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">akey2</span>.<span class="ident">to_avk</span>() {
@@ -795,7 +924,14 @@
         <span class="prelude-val">Err</span>(<span class="ident">AtmsError::InvalidAggregation</span>)
     }
 
-    <span class="doccomment">/// Convert `Avk` to byte string.</span>
+    <span class="doccomment">/// Convert `Avk` to byte string of size $48 + 8 + S$ where $S$ is the output size of the</span>
+    <span class="doccomment">/// hash function.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Layout</span>
+    <span class="doccomment">/// The layout of an `Avk` is</span>
+    <span class="doccomment">/// * Aggregate key</span>
+    <span class="doccomment">/// * Nr of parties</span>
+    <span class="doccomment">/// * Merkle tree commitment</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
         <span class="ident">result</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">aggregate_key</span>.<span class="ident">to_bytes</span>());
@@ -804,7 +940,12 @@
         <span class="ident">result</span>
     }
 
-    <span class="doccomment">/// Try to convert a byte string to an `Avk`.</span>
+    <span class="doccomment">/// Try to convert a byte string to an `Avk`. This function must be used in a setting</span>
+    <span class="doccomment">/// where there exists a source of truth, and the verifier can check that the provided</span>
+    <span class="doccomment">/// `Avk` is valid (e.g. through a signature of trusted authority).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Error</span>
+    <span class="doccomment">/// Function fails if the byte representation corresponds to an invalid Avk</span>
     <span class="comment">// todo: again, handle these conversions to usize..</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">AtmsError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">nr_bytes</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">8</span>];
@@ -821,7 +962,9 @@
     }
 }
 
-<span class="doccomment">/// An ATMS registration</span>
+<span class="doccomment">/// An ATMS registration, which contains the aggregate key of all eligible signers, the Merkle</span>
+<span class="doccomment">/// tree containing _all_ nodes in the tree (including the leaves), and a hash map, specifying</span>
+<span class="doccomment">/// the position of each key in the merkle tree commitment.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Registration</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>
 <span class="kw">where</span>
@@ -835,9 +978,9 @@
     <span class="ident">leaf_map</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">PublicKey</span>, <span class="ident">usize</span><span class="op">&gt;</span>,
 }
 
-<span class="doccomment">/// An Aggregated Signature</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Testing for docs</span>
+<span class="doccomment">/// An ATMS aggregate signature, contains the multi signature aggregation of all participating signers</span>
+<span class="doccomment">/// and the public key of all non-participating signers, together with a proof of membership to the</span>
+<span class="doccomment">/// vector commitment of all eligible signers.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AggregateSig</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>
 <span class="kw">where</span>
@@ -853,7 +996,21 @@
 <span class="kw">where</span>
     <span class="ident">H</span>: <span class="ident">Digest</span> <span class="op">+</span> <span class="ident">FixedOutput</span>,
 {
-    <span class="doccomment">/// Aggregate a set of keys, and commit to them in a canonical order.</span>
+    <span class="doccomment">/// Aggregate a set of keys, and commit to them in a canonical order. The canonical order</span>
+    <span class="doccomment">/// is defined as the ordering of the byte representation of the compressed public keys. In</span>
+    <span class="doccomment">/// practice, this ordering can be any deterministic function as long as the aggregator and</span>
+    <span class="doccomment">/// the verifier use the same.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Provided with a vector of keys with their proof of possession, `PublicKeyPoP`, the registration</span>
+    <span class="doccomment">/// proceeds by checking all proofs of possession. Then, it aggregates all public key by adding</span>
+    <span class="doccomment">/// them. Similarly, it commits to them by first ordering them, and then committing them in a</span>
+    <span class="doccomment">/// Merkle Tree. Finally, it computes a hash map, by creating the relation of the relative</span>
+    <span class="doccomment">/// position of each key in the committed vector. Registration guarantees that there are no</span>
+    <span class="doccomment">/// repeated keys.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Error</span>
+    <span class="doccomment">/// The function returns `AtmsError::InvalidPoP` if one of the proofs of possession is invalid,</span>
+    <span class="doccomment">/// and `AtmsError::RegisterExistingKey` if the input tuple contains a repeated key.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">keys_pop</span>: <span class="kw-2">&amp;</span>[<span class="ident">PublicKeyPoP</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">AtmsError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">checked_keys</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="ident">keys_pop</span>.<span class="ident">len</span>());
 
@@ -883,7 +1040,8 @@
         })
     }
 
-    <span class="doccomment">/// Return an `Avk` key from the key registration</span>
+    <span class="doccomment">/// Return an `Avk` key from the key registration. This consists of the merkle root</span>
+    <span class="doccomment">/// of the vector commitment.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_avk</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Avk</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span> {
         <span class="ident">Avk</span> {
             <span class="ident">aggregate_key</span>: <span class="self">self</span>.<span class="ident">aggregate_key</span>,
@@ -892,8 +1050,11 @@
         }
     }
 
-    <span class="doccomment">/// Convert a registration into a byte array</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Convert a registration into a byte array. Not exposing serde of registration because</span>
+    <span class="doccomment">/// passing the keys with PoP is cheaper and safer. This way we guarantee that a Registration</span>
+    <span class="doccomment">/// can only be generated with valid keys.</span>
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">to_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
         <span class="ident">result</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">aggregate_key</span>.<span class="ident">to_bytes</span>());
         <span class="ident">result</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">leaf_map</span>.<span class="ident">len</span>().<span class="ident">to_be_bytes</span>());
@@ -906,8 +1067,14 @@
         <span class="ident">result</span>
     }
 
-    <span class="doccomment">/// Try to convert a byte array into an ATMS `Registration`</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">AtmsError</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Try to convert a byte array into an ATMS `Registration`.  Not exposing serde of registration because</span>
+    <span class="doccomment">/// passing the keys with PoP is cheaper and safer. This way we guarantee that a Registration</span>
+    <span class="doccomment">/// can only be generated with valid keys.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Error</span>
+    <span class="doccomment">/// Fails if the byte representation is an incorrect Registration.</span>
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">from_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">AtmsError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">aggregate_key</span> <span class="op">=</span> <span class="ident">PublicKey::from_bytes</span>(<span class="ident">bytes</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">len_bytes</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">8</span>];
         <span class="ident">len_bytes</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="number">48</span>..<span class="number">56</span>]);
@@ -941,6 +1108,20 @@
     <span class="ident">H</span>: <span class="ident">Digest</span> <span class="op">+</span> <span class="ident">FixedOutput</span>,
 {
     <span class="doccomment">/// Aggregate a list of signatures.</span>
+    <span class="doccomment">/// The signature aggregation can again be performed by any third party. Given $d$ pairs of</span>
+    <span class="doccomment">/// signatures, `sigs`,  with their respective public keys $\lbrace\sigma_i, vk_i\rbrace_{i\in Ps}$,</span>
+    <span class="doccomment">/// the aggregator produces the following aggregate signature. It begins by checking all signatures</span>
+    <span class="doccomment">/// are valid, and which public keys</span>
+    <span class="doccomment">/// are missing from the tuple of submitted signatures, $\widehat{vk}_i$, and computes their proof</span>
+    <span class="doccomment">/// of set membership within the set of eligible signers, $\pi _{\widehat{vk_i}}$. Then it proceeds</span>
+    <span class="doccomment">/// with the computation of the aggregate signature:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// $$ \sigma = \left(\sigma_a = \sum_{i\in Ps}\sigma_i, \lbrace\widehat{vk}_i\rbrace _{i\in Es \setminus Ps }, \lbrace\pi _{\widehat{vk_i}}\rbrace _{i\in Es \setminus Ps}\right).$$</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Error</span>
+    <span class="doccomment">/// Aggregation returns `AtmsError::NonRegisteredParticipant` if one of the submitted signatures</span>
+    <span class="doccomment">/// comes from a non-registered participant, and `AtmsError::InvalidSignature` if one of the</span>
+    <span class="doccomment">/// signatures is invalid.</span>
     <span class="comment">// todo: do we want to pass the pks as part of the sigs, or maybe just some indices?</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
         <span class="ident">registration</span>: <span class="kw-2">&amp;</span><span class="ident">Registration</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>,
@@ -984,8 +1165,66 @@
         })
     }
 
-    <span class="doccomment">/// Verify that this aggregation is valid for the given collection of keys and message.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">msg</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">keys</span>: <span class="kw-2">&amp;</span><span class="ident">Avk</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>, <span class="ident">threshold</span>: <span class="ident">usize</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AtmsError</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Verify that this aggregation, `self`, is a valid signature of `msg` with respect to the</span>
+    <span class="doccomment">/// aggregate key `avk` with the given `threshold`.</span>
+    <span class="doccomment">/// The verifier takes as input a message `msg`, an</span>
+    <span class="doccomment">/// aggregate key `avk`, a signature $\sigma$ and a `threshold` $t$, and proceeds as follows:</span>
+    <span class="doccomment">/// 1. Verify that all public keys are different, and that they belong to the commitment $\langle</span>
+    <span class="doccomment">///    \mathcal{VK}\rangle$ in $avk$ using the proofs of membership.</span>
+    <span class="doccomment">/// 2. Compute $avk&#39;$ by dividing the aggregate key of non-signers, i.e.</span>
+    <span class="doccomment">///    $$avk&#39; = avk - \sum_{i\in Es\setminus Ps}\widehat{vk_i}$$</span>
+    <span class="doccomment">/// 3. Return valid if an only if $d\geq t$ and $\sigma$ validates with respect to $avk&#39;$.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Error</span>
+    <span class="doccomment">/// Verification failds in the following cases:</span>
+    <span class="doccomment">/// * `AtmsError::FoundDuplicates` if there are duplicates in the non-signers,</span>
+    <span class="doccomment">/// * `AtmsError::InvalidMerkleProof` if the proof of membership is invalid, and</span>
+    <span class="doccomment">/// * `AtmsError::TooMuchOutstandingSigners` if there are not enough signers.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Example</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// # use atms::multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey};</span>
+    <span class="doccomment">/// # use atms::aggregation::{AggregateSig, Registration};</span>
+    <span class="doccomment">/// # use atms::AtmsError;</span>
+    <span class="doccomment">/// # use blake2::Blake2b;</span>
+    <span class="doccomment">/// # use rand_core::OsRng;</span>
+    <span class="doccomment">/// # fn main() -&gt; Result&lt;(), AtmsError&gt; {</span>
+    <span class="doccomment">/// let n = 10; // number of parties</span>
+    <span class="doccomment">/// let subset_is = [1, 2, 3, 5, 6, 7, 9];</span>
+    <span class="doccomment">/// let threshold: usize = n - ((n - 1) / 3);</span>
+    <span class="doccomment">/// let msg = b&quot;Did you know that Charles Babbage broke the Vigenere cipher?&quot;;</span>
+    <span class="doccomment">/// let mut rng = OsRng;</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut keyspop: Vec&lt;PublicKeyPoP&gt; = Vec::new();</span>
+    <span class="doccomment">/// let mut signatures: Vec&lt;(PublicKey, Signature)&gt; = Vec::new();</span>
+    <span class="doccomment">/// for _ in 1..=n {</span>
+    <span class="doccomment">///     let sk = SigningKey::gen(&amp;mut rng);</span>
+    <span class="doccomment">///     let pk = PublicKey::from(&amp;sk);</span>
+    <span class="doccomment">///     let pkpop = PublicKeyPoP::from(&amp;sk);</span>
+    <span class="doccomment">///     let sig = sk.sign(msg);</span>
+    <span class="doccomment">///     assert!(sig.verify(&amp;pk, msg).is_ok());</span>
+    <span class="doccomment">///     keyspop.push(pkpop);</span>
+    <span class="doccomment">///     signatures.push((pk, sig));</span>
+    <span class="doccomment">/// }</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let atms_registration = Registration::&lt;Blake2b&gt;::new(&amp;keyspop)?;</span>
+    <span class="doccomment">/// let avk = atms_registration.to_avk();</span>
+    <span class="doccomment">/// assert!(avk.check(&amp;keyspop).is_ok());</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let subset = subset_is</span>
+    <span class="doccomment">///     .iter()</span>
+    <span class="doccomment">///     .map(|i| {</span>
+    <span class="doccomment">///         signatures[i % n]</span>
+    <span class="doccomment">///     })</span>
+    <span class="doccomment">///     .collect::&lt;Vec&lt;_&gt;&gt;();</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut aggr_sig = AggregateSig::new(&amp;atms_registration, &amp;subset, msg).expect(&quot;Signatures should be valid&quot;);</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// assert!(aggr_sig.verify(msg, &amp;avk, threshold).is_ok());</span>
+    <span class="doccomment">/// # Ok(())</span>
+    <span class="doccomment">/// # }</span>
+    <span class="doccomment">/// ```</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">verify</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">msg</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">avk</span>: <span class="kw-2">&amp;</span><span class="ident">Avk</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>, <span class="ident">threshold</span>: <span class="ident">usize</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AtmsError</span><span class="op">&gt;</span> {
         <span class="comment">// Check duplicates by building this set of</span>
         <span class="comment">// non-signing keys</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unique_non_signers</span> <span class="op">=</span> <span class="ident">HashSet::new</span>();
@@ -994,7 +1233,7 @@
         <span class="comment">// Check inclusion proofs</span>
         <span class="comment">// todo: best compress or serialize?</span>
         <span class="kw">for</span> (<span class="ident">non_signer</span>, <span class="ident">proof</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">keys_proofs</span> {
-            <span class="kw">if</span> <span class="ident">keys</span>
+            <span class="kw">if</span> <span class="ident">avk</span>
                 .<span class="ident">mt_commitment</span>
                 .<span class="ident">check</span>(<span class="kw-2">&amp;</span><span class="ident">non_signer</span>.<span class="number">0</span>.<span class="ident">compress</span>(), <span class="ident">proof</span>)
                 .<span class="ident">is_ok</span>()
@@ -1010,13 +1249,13 @@
         }
 
         <span class="comment">// The threshold is k, for n = 3*k + 1</span>
-        <span class="macro">assert!</span>(<span class="ident">keys</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="ident">threshold</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&gt;</span><span class="op">=</span> (<span class="ident">keys</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="number">1</span>) <span class="op">/</span> <span class="number">3</span>);
-        <span class="kw">if</span> <span class="ident">non_signing_size</span> <span class="op">&gt;</span> <span class="ident">keys</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="ident">threshold</span> {
+        <span class="macro">assert!</span>(<span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="ident">threshold</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&gt;</span><span class="op">=</span> (<span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="number">1</span>) <span class="op">/</span> <span class="number">3</span>);
+        <span class="kw">if</span> <span class="ident">non_signing_size</span> <span class="op">&gt;</span> <span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="ident">threshold</span> {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AtmsError::TooMuchOutstandingSigners</span>(<span class="ident">non_signing_size</span>));
         }
         <span class="comment">// Check with the underlying signature scheme that the quotient of the</span>
         <span class="comment">// aggregated key by the non-signers validates this signature.</span>
-        <span class="kw">let</span> <span class="ident">final_key</span> <span class="op">=</span> <span class="ident">keys</span>.<span class="ident">aggregate_key</span> <span class="op">-</span> <span class="ident">unique_non_signers</span>.<span class="ident">into_iter</span>().<span class="ident">sum</span>();
+        <span class="kw">let</span> <span class="ident">final_key</span> <span class="op">=</span> <span class="ident">avk</span>.<span class="ident">aggregate_key</span> <span class="op">-</span> <span class="ident">unique_non_signers</span>.<span class="ident">into_iter</span>().<span class="ident">sum</span>();
         <span class="ident">blst_err_to_atms</span>(
             <span class="self">self</span>.<span class="ident">aggregate</span>
                 .<span class="number">0</span>
@@ -1024,7 +1263,16 @@
         )
     }
 
-    <span class="doccomment">/// Convert to a byte string.</span>
+    <span class="doccomment">/// Convert to a byte string of size $8 + b * 8 + 96 + t * (48 + P)$, where $b$ is boolean which is</span>
+    <span class="doccomment">/// 1 if there are non-signers, $t$ is the number of non-signers, and $P$ is the size of the proof</span>
+    <span class="doccomment">/// of membership.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Layout</span>
+    <span class="doccomment">/// The layout of an `AggregateSignature` is</span>
+    <span class="doccomment">/// * Number of non-signers</span>
+    <span class="doccomment">/// * Size of membership proofs</span>
+    <span class="doccomment">/// * Aggregate signature</span>
+    <span class="doccomment">/// * $t$ public keys and their proofs of membership in the merkle commitment</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="comment">// todo: lets do with_capacity here</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregate_sig_bytes</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
@@ -1078,7 +1326,7 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">PublicKey</span>, <span class="ident">PublicKeyPoP</span>, <span class="ident">Signature</span>, <span class="ident">SigningKey</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::multi_sig</span>::{<span class="ident">PublicKey</span>, <span class="ident">PublicKeyPoP</span>, <span class="ident">Signature</span>, <span class="ident">SigningKey</span>};
     <span class="kw">use</span> <span class="ident">blake2::Blake2b</span>;
     <span class="kw">use</span> <span class="ident">proptest::prelude</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">rand::seq::SliceRandom</span>;
@@ -1199,7 +1447,7 @@
             }
 
             <span class="kw">for</span> <span class="ident">pk</span> <span class="kw">in</span> <span class="ident">pks</span>.<span class="ident">iter</span>().<span class="ident">skip</span>(<span class="ident">num_sigs</span> <span class="kw">as</span> <span class="ident">usize</span>) {
-                <span class="ident">aggr_pk</span> <span class="op">=</span> <span class="ident">aggr_pk</span> <span class="op">-</span> <span class="ident">pk</span>.<span class="ident">clone</span>();
+                <span class="ident">aggr_pk</span> <span class="op">=</span> <span class="ident">aggr_pk</span> <span class="op">-</span> <span class="kw-2">*</span><span class="ident">pk</span>;
             }
 
             <span class="kw">let</span> <span class="ident">aggr_sig</span>: <span class="ident">Signature</span> <span class="op">=</span> <span class="ident">sigs</span>.<span class="ident">iter</span>().<span class="ident">sum</span>();
@@ -1282,7 +1530,7 @@
             }
 
             <span class="kw">if</span> <span class="ident">repeated_reg</span> <span class="op">==</span> <span class="number">1</span> {
-                <span class="ident">keyspop</span>.<span class="ident">push</span>(<span class="ident">keyspop</span>[<span class="number">0</span>].<span class="ident">clone</span>());
+                <span class="ident">keyspop</span>.<span class="ident">push</span>(<span class="ident">keyspop</span>[<span class="number">0</span>]);
             }
 
             <span class="kw">if</span> <span class="ident">invalid_pop</span> <span class="op">==</span> <span class="number">1</span> {
@@ -1348,17 +1596,17 @@
 
             <span class="kw">let</span> <span class="ident">false_susbset</span>: [(<span class="ident">PublicKey</span>, <span class="ident">Signature</span>); <span class="number">1</span>] <span class="op">=</span> [<span class="ident">signatures</span>[<span class="ident">false_mk_proof</span> <span class="op">%</span> <span class="ident">n</span>]];
             <span class="kw">let</span> <span class="ident">false_aggr</span> <span class="op">=</span> <span class="ident">AggregateSig::new</span>(<span class="kw-2">&amp;</span><span class="ident">atms_registration</span>, <span class="kw-2">&amp;</span><span class="ident">false_susbset</span>, <span class="kw-2">&amp;</span><span class="ident">msg</span>).<span class="ident">expect</span>(<span class="string">&quot;Signatures should be valid&quot;</span>);
-            <span class="kw">if</span> <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>.<span class="ident">is_empty</span>() {
                 <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">1</span> <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">1</span>.<span class="ident">clone</span>();
             } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span> <span class="op">&amp;&amp;</span> <span class="ident">repeate_non_signer</span> <span class="op">==</span> <span class="number">1</span> {
-                <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span> <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">1</span>].<span class="number">0</span>.<span class="ident">clone</span>();
+                <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span> <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">1</span>].<span class="number">0</span>;
                 <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">1</span> <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">1</span>].<span class="number">1</span>.<span class="ident">clone</span>();
             }
 
             <span class="kw">match</span> <span class="ident">aggr_sig</span>.<span class="ident">verify</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>, <span class="kw-2">&amp;</span><span class="ident">avk</span>, <span class="ident">threshold</span>) {
                 <span class="prelude-val">Ok</span>(()) =&gt; {
                     <span class="macro">assert!</span>(<span class="ident">subset</span>.<span class="ident">len</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="ident">threshold</span>);
-                    <span class="kw">if</span> <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>.<span class="ident">is_empty</span>() {
                         <span class="macro">assert_eq!</span>(<span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span>, <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span>);
                     }
                 },

@@ -287,10 +287,13 @@
 <span id="285">285</span>
 <span id="286">286</span>
 <span id="287">287</span>
+<span id="288">288</span>
 </pre><pre class="rust"><code><span class="doccomment">//! C api. All functions return an i64, with 0 upon success, and -99 if the returned pointer</span>
 <span class="doccomment">//! is null. Other error codes are function dependent.</span>
 <span class="kw">use</span> <span class="kw">crate</span>::{
-    <span class="ident">AggregateSig</span>, <span class="ident">AtmsError</span>, <span class="ident">PublicKey</span>, <span class="ident">PublicKeyPoP</span>, <span class="ident">Registration</span>, <span class="ident">Signature</span>, <span class="ident">SigningKey</span>,
+    <span class="ident">aggregation</span>::{<span class="ident">AggregateSig</span>, <span class="ident">Registration</span>},
+    <span class="ident">error::AtmsError</span>,
+    <span class="ident">multi_sig</span>::{<span class="ident">PublicKey</span>, <span class="ident">PublicKeyPoP</span>, <span class="ident">Signature</span>, <span class="ident">SigningKey</span>},
 };
 <span class="kw">use</span> <span class="ident">rand_core::OsRng</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">ffi::CStr</span>, <span class="ident">os::raw::c_char</span>};
@@ -381,7 +384,6 @@
 <span class="macro">atms_serialisation!</span>(<span class="ident">sk</span>, <span class="ident">SigningKeyPtr</span>, <span class="ident">SigningKey</span>);
 <span class="macro">atms_serialisation!</span>(<span class="ident">pk</span>, <span class="ident">PublicKeyPtr</span>, <span class="ident">PublicKey</span>);
 <span class="macro">atms_serialisation!</span>(<span class="ident">pkpop</span>, <span class="ident">PublicKeyPoPPtr</span>, <span class="ident">PublicKeyPoP</span>);
-<span class="macro">atms_serialisation!</span>(<span class="ident">registration</span>, <span class="ident">RegistrationPtr</span>, <span class="ident">Registration</span>);
 <span class="macro">atms_serialisation!</span>(<span class="ident">aggr_sig</span>, <span class="ident">AggregateSigPtr</span>, <span class="ident">AggregateSig</span>);
 <span class="macro">atms_serialisation!</span>(<span class="ident">avk</span>, <span class="ident">AvkPtr</span>, <span class="ident">Avk</span>);
 

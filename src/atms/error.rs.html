@@ -71,9 +71,12 @@
 <span id="69">69</span>
 <span id="70">70</span>
 <span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Errors specific to this crate</span>
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::PublicKey</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::multi_sig::PublicKey</span>;
 <span class="kw">use</span> <span class="ident">blst::BLST_ERROR</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">thiserror::Error</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
@@ -135,6 +138,9 @@
     <span class="doccomment">/// have invalid size.</span>
     <span class="attribute">#[<span class="ident">error</span>(<span class="string">&quot;Invalid sized bytes.&quot;</span>)]</span>
     <span class="ident">InvalidSizedBytes</span>,
+    <span class="doccomment">/// This error occures when the index of a proved element is out of bounds</span>
+    <span class="attribute">#[<span class="ident">error</span>(<span class="string">&quot;Index out of bounds&quot;</span>)]</span>
+    <span class="ident">IndexOutOfBounds</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">MerkleTreeError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AtmsError</span> {
