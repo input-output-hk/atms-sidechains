@@ -14,7 +14,11 @@ pub struct Path<D: Digest + FixedOutput> {
     hasher: PhantomData<D>,
 }
 
-/// Path for a batch of indices
+/// Path for a batch of indices. The size of a batched path, $s$, depends
+/// on how the nodes are distributed among the leaves. It has size
+/// $h − \log 2 k \leq s \leq k(h − \log 2 k)$, with $h$
+/// the height of the tree and $k$ the size of the batch. This is considerably better than the
+/// trivial $k \cdot h$ solution of appending $k$ paths.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BatchPath<D: Digest + FixedOutput> {
     values: Vec<Vec<u8>>,
@@ -55,7 +59,7 @@ impl<D: Digest + FixedOutput> Path<D> {
         let index = u64::from_be_bytes(u64_bytes);
         let node_size = D::output_size();
 
-        let mut vec_nodes = Vec::new();
+        let mut vec_nodes = Vec::with_capacity(size);
         for slice in bytes[16..16 + node_size * size].chunks(node_size) {
             vec_nodes.push(slice.to_vec());
         }
@@ -63,6 +67,62 @@ impl<D: Digest + FixedOutput> Path<D> {
         Ok(Self {
             values: vec_nodes,
             index: index as usize,
+            hasher: Default::default(),
+        })
+    }
+}
+
+impl<D: Digest + FixedOutput> BatchPath<D> {
+    // todo: probably this description belongs in the BatchPath struct
+    /// Convert the `BatchPath` into byte representation.
+    ///
+    /// # Layout
+    /// The layout of a `Path` is
+    /// * Length of proof, $n$
+    /// * Length of batch
+    /// * Indices of element
+    /// * $n$ hash outputs
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut result = Vec::new();
+        let len = self.values.len();
+        let size_batch = self.indices.len();
+        result.extend_from_slice(&len.to_be_bytes());
+        result.extend_from_slice(&size_batch.to_be_bytes());
+
+        for index in &self.indices {
+            result.extend_from_slice(&index.to_be_bytes());
+        }
+
+        for node in &self.values {
+            result.extend_from_slice(node.as_slice());
+        }
+        result
+    }
+
+    /// Try to convert a byte string into a `BatchPath`.
+    /// todo: unsafe conversion of ints
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, MerkleTreeError> {
+        let mut u64_bytes = [0u8; 8];
+        u64_bytes.copy_from_slice(&bytes[..8]);
+        let len = usize::from_be_bytes(u64_bytes);
+        u64_bytes.copy_from_slice(&bytes[8..16]);
+        let size_batch = usize::from_be_bytes(u64_bytes);
+        let mut indices = Vec::with_capacity(size_batch);
+
+        for slice in bytes[16..16 + 8 * size_batch].chunks(8) {
+            u64_bytes.copy_from_slice(slice);
+            indices.push(usize::from_be_bytes(u64_bytes));
+        }
+
+        let node_size = D::output_size();
+        let mut vec_nodes = Vec::with_capacity(len);
+        for slice in bytes[16 + 8 * size_batch..].chunks(node_size) {
+            vec_nodes.push(slice.to_vec());
+        }
+
+        Ok(Self {
+            values: vec_nodes,
+            indices,
             hasher: Default::default(),
         })
     }
@@ -329,7 +389,12 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         }
     }
 
-    /// Get a path for a batch of leaves.
+    /// Get a path for a batch of leaves. We use the Octopus algorithm to avoid redundancy
+    /// with nodes in the path. First, the leaf indices are sorted. Then, for each level of
+    /// the Merkle tree, in a bottom-up order, for each index we add its parent to the list of
+    /// indices at the upper level. We then compute the index of its sibling. If the next
+    /// index to authenticate happens to be the sibling, then we skip the sibling.
+    /// Otherwise, we add the sibling to the list of authentication nodes.
     pub fn get_batched_path(&self, indices: Vec<usize>) -> BatchPath<D> {
         for i in &indices {
             assert!(
@@ -503,6 +568,25 @@ mod tests {
                 let test = MerkleTreeCommitment::<Blake2b>::from_bytes(&bytes).unwrap();
                 assert!(test.check(&values[i], &test2).is_ok());
             })
+        }
+
+        #[test]
+        fn test_serde_batch_proof((t, values) in arb_tree(64),
+            selected in vec(any::<u8>(), 2..32)
+        )  {
+            let length = values.len();
+            let mut batch_indices: Vec<usize> = selected.iter().map(|&v| v as usize % length).collect();
+            batch_indices.sort_unstable();
+            batch_indices.dedup();
+
+            let batch_values = batch_indices.iter().map(|&v| values[v].clone()).collect();
+            let batch_proof = t.get_batched_path(batch_indices);
+
+            let proof_bytes = batch_proof.to_bytes();
+            let proof = BatchPath::from_bytes(&proof_bytes).unwrap();
+
+            let mt_commitment = t.to_commitment();
+            assert!(mt_commitment.check_batched(batch_values, &proof).is_ok());
         }
     }
 
