@@ -5,7 +5,6 @@ use crate::error::MerkleTreeError;
 use digest::{Digest, FixedOutput};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use crate::AtmsError;
 
 /// Path of hashes from root to leaf in a Merkle Tree. Contains all hashes on the path, and the index
 /// of the leaf.
@@ -143,7 +142,12 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         ordered_indices.sort();
 
         let mut idx = ordered_indices[0];
-        let mut leaves = batch_val.clone();
+        // First we need to pad the values
+        let mut leaves = vec![vec![0u8; D::output_size()]; batch_val.len()];;
+        for i in 0..batch_val.len() {
+            leaves[i][..batch_val[i].len()].copy_from_slice(&batch_val[i]);
+        }
+
         let mut values = proof.values.clone();
 
         while idx > 0 {
@@ -515,6 +519,6 @@ mod tests {
         let batch_proof = mt.get_batched_path(batch_opening);
 
         let mt_commitment = mt.to_commitment();
-        mt_commitment.check_batched(batch_values, &batch_proof);
+        assert!(mt_commitment.check_batched(batch_values, &batch_proof).is_ok());
     }
 }
