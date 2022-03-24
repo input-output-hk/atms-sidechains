@@ -64,7 +64,7 @@ pub enum MerkleTreeError {
     InvalidSizedBytes,
     /// This error occures when the index of a proved element is out of bounds
     #[error("Index out of bounds")]
-    IndexOutOfBounds
+    IndexOutOfBounds,
 }
 
 impl From<MerkleTreeError> for AtmsError {

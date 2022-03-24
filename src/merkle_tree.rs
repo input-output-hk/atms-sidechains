@@ -111,8 +111,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     pub fn check(&self, val: &[u8], proof: &Path<D>) -> Result<(), MerkleTreeError> {
         let mut idx = proof.index;
 
-        let mut h = vec![0u8; D::output_size()];
-        h[..val.len()].copy_from_slice(val);
+        let mut h = D::digest(val).to_vec();
         for p in &proof.values {
             if (idx & 0b1) == 0 {
                 h = D::new().chain(h).chain(p).finalize().to_vec();
@@ -128,20 +127,29 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         Err(MerkleTreeError::InvalidPath)
     }
 
-    pub fn check_batched(&self, batch_val: Vec<Vec<u8>>, proof: &BatchPath<D>) -> Result<(), MerkleTreeError> {
+    /// Check a proof of a batched opening
+    pub fn check_batched(
+        &self,
+        batch_val: Vec<Vec<u8>>,
+        proof: &BatchPath<D>,
+    ) -> Result<(), MerkleTreeError> {
         if batch_val.len() != proof.indices.len() {
             return Err(MerkleTreeError::IndexOutOfBounds); // todo: not index out of bounds
         }
-        let mut ordered_indices: Vec<usize> = proof.indices
+        let mut ordered_indices: Vec<usize> = proof
+            .indices
             .clone()
             .into_iter()
             .map(|i| i + self.nr_leaves - 1)
             .collect();
-        ordered_indices.sort();
+        ordered_indices.sort_unstable();
 
         let mut idx = ordered_indices[0];
         // First we need to pad the values
-        let mut leaves = batch_val.clone();
+        let mut leaves: Vec<Vec<u8>> = batch_val
+            .iter()
+            .map(|val| D::digest(val).to_vec())
+            .collect();
 
         let mut values = proof.values.clone();
 
@@ -152,13 +160,13 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
             idx = parent(idx);
             while i < ordered_indices.len() {
                 new_indices.push(parent(ordered_indices[i]));
-                if ordered_indices[i]&1 == 0 {
+                if ordered_indices[i] & 1 == 0 {
                     new_hashes.push(
                         D::new()
                             .chain(&values[0])
                             .chain(&leaves[i])
                             .finalize()
-                            .to_vec()
+                            .to_vec(),
                     );
 
                     values.remove(0);
@@ -168,9 +176,9 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
                         new_hashes.push(
                             D::new()
                                 .chain(&leaves[i])
-                                .chain(&leaves[i+1])
+                                .chain(&leaves[i + 1])
                                 .finalize()
-                                .to_vec()
+                                .to_vec(),
                         );
                         i += 1;
                     } else {
@@ -179,7 +187,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
                                 .chain(&leaves[i])
                                 .chain(&values[0])
                                 .finalize()
-                                .to_vec()
+                                .to_vec(),
                         );
                         values.remove(0);
                     }
@@ -214,7 +222,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         let nr_leaves = usize::from_be_bytes(usize_bytes);
         if bytes[8..].len() == D::output_size() {
             return Ok(Self {
-                value: bytes.to_vec(),
+                value: bytes[8..].to_vec(),
                 nr_leaves,
                 hasher: PhantomData::default(),
             });
@@ -254,11 +262,11 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         let mut nodes = vec![vec![0u8]; num_nodes];
 
         for i in 0..leaves.len() {
-            nodes[num_nodes - n + i] = leaves[i].clone();
+            nodes[num_nodes - n + i] = D::digest(&leaves[i].clone()).to_vec();
         }
 
         for i in leaves.len()..n.next_power_of_two() {
-            nodes[num_nodes - n + i] = vec![0u8; D::output_size()];
+            nodes[num_nodes - n + i] = D::digest(&[0u8]).to_vec();
         }
 
         for i in (0..num_nodes - n).rev() {
@@ -338,11 +346,10 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
             .map(|i| self.idx_of_leaf(i))
             .collect();
 
-        ordered_indices.sort();
+        ordered_indices.sort_unstable();
 
         let mut idx = ordered_indices[0];
         let mut proof = Vec::new();
-
 
         while idx > 0 {
             let mut new_indices = Vec::new();
@@ -352,11 +359,11 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
                 new_indices.push(parent(ordered_indices[i]));
                 let sibling = sibling(ordered_indices[i]);
                 if i < ordered_indices.len() - 1 && ordered_indices[i + 1] == sibling {
-                    i+=1;
+                    i += 1;
                 } else {
                     proof.push(self.nodes[sibling].clone());
                 }
-                i+=1;
+                i += 1;
             }
 
             ordered_indices = new_indices.clone();
@@ -364,7 +371,7 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
 
         BatchPath {
             values: proof,
-            indices: indices.clone(),
+            indices,
             hasher: Default::default(),
         }
     }
@@ -389,7 +396,7 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         let mut usize_bytes = [0u8; 8];
         usize_bytes.copy_from_slice(&bytes[..8]);
         let n = usize::from_be_bytes(usize_bytes);
-        let num_nodes = n + n.next_power_of_two() - 1;
+        let num_nodes = n + n - 1;
         let mut nodes = Vec::new();
         for i in 0..num_nodes {
             nodes.push(bytes[8 + i * D::output_size()..8 + (i + 1) * D::output_size()].to_vec());
@@ -463,6 +470,22 @@ mod tests {
         }
 
         #[test]
+        fn test_batch_proof((t, values) in arb_tree(64),
+            selected in vec(any::<u8>(), 2..32)
+        )  {
+            let length = values.len();
+            let mut batch_indices: Vec<usize> = selected.iter().map(|&v| v as usize % length).collect();
+            batch_indices.sort_unstable();
+            batch_indices.dedup();
+
+            let batch_values = batch_indices.iter().map(|&v| values[v].clone()).collect();
+            let batch_proof = t.get_batched_path(batch_indices);
+
+            let mt_commitment = t.to_commitment();
+            assert!(mt_commitment.check_batched(batch_values, &batch_proof).is_ok());
+        }
+
+        #[test]
         fn test_serde((t, values) in arb_tree(30)) {
             values.iter().enumerate().for_each(|(i, _v)| {
                 let pf = t.get_path(i);
@@ -508,18 +531,5 @@ mod tests {
             let path = Path{values: proof, index: idx, hasher: PhantomData::<Blake2b>::default()};
             assert!(t.to_commitment().check(&values[0], &path).is_err());
         }
-    }
-
-    #[test]
-    fn merkle_batch_verif() {
-        let leafs = [vec![0u8], vec![1u8], vec![2u8], vec![3u8], vec![4u8], vec![5u8], vec![6u8], vec![07u8]];
-        let mt = MerkleTree::<Blake2b>::create(&leafs);
-
-        let batch_opening = vec![0, 3, 5, 6];
-        let batch_values: Vec<Vec<u8>> = batch_opening.iter().map(|&v| [v as u8].to_vec()).collect();
-        let batch_proof = mt.get_batched_path(batch_opening);
-
-        let mt_commitment = mt.to_commitment();
-        assert!(mt_commitment.check_batched(batch_values, &batch_proof).is_ok());
     }
 }
