@@ -73,7 +73,6 @@ impl<D: Digest + FixedOutput> Path<D> {
 }
 
 impl<D: Digest + FixedOutput> BatchPath<D> {
-    // todo: probably this description belongs in the BatchPath struct
     /// Convert the `BatchPath` into byte representation.
     ///
     /// # Layout
@@ -100,7 +99,7 @@ impl<D: Digest + FixedOutput> BatchPath<D> {
     }
 
     /// Try to convert a byte string into a `BatchPath`.
-    /// todo: unsafe conversion of ints
+    // todo: unsafe conversion of ints
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, MerkleTreeError> {
         let mut u64_bytes = [0u8; 8];
         u64_bytes.copy_from_slice(&bytes[..8]);
@@ -208,7 +207,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     /// }
     /// // Compute the Merkle tree of the keys.
     /// let mt = MerkleTree::<Blake2b>::create(&keys);
-    /// // Compute the path of keys in position [1, 3, 11, 7].
+    /// // Compute the path of keys in position [1, 3, 7, 11].
     /// let indices = vec![1, 3, 7, 11];
     /// let values = indices.iter().map(|i| keys[*i].clone()).collect::<Vec<_>>();
     /// let path = mt.get_batched_path(indices);
@@ -222,18 +221,21 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         proof: &BatchPath<D>,
     ) -> Result<(), MerkleTreeError> {
         if batch_val.len() != proof.indices.len() {
-            return Err(MerkleTreeError::IndexOutOfBounds); // todo: not index out of bounds
+            return Err(MerkleTreeError::InvalidPath);
         }
-        let mut ordered_indices: Vec<usize> = proof
-            .indices
-            .clone()
-            .into_iter()
-            .map(|i| i + self.nr_leaves - 1)
-            .collect();
+        let mut ordered_indices: Vec<usize> = proof.indices.clone();
         ordered_indices.sort_unstable();
 
+        if ordered_indices != proof.indices {
+            return Err(MerkleTreeError::InvalidPath);
+        }
+
+        ordered_indices = ordered_indices.into_iter()
+            .map(|i| i + self.nr_leaves - 1)
+            .collect();
+
         let mut idx = ordered_indices[0];
-        // First we need to pad the values
+        // First we need to hash the leave values
         let mut leaves: Vec<Vec<u8>> = batch_val
             .iter()
             .map(|val| D::digest(val).to_vec())
@@ -286,11 +288,10 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
             ordered_indices = new_indices.clone();
         }
 
-        assert_eq!(leaves.len(), 1);
-
-        if leaves[0] == self.value {
+        if leaves.len() == 1 && leaves[0] == self.value {
             return Ok(());
         }
+
         Err(MerkleTreeError::InvalidPath)
     }
 
