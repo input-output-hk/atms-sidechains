@@ -3,7 +3,7 @@ extern "C" {
 #include "../target/include/atms.h"
 }
 
-TEST(atm, produceAndVerifyAggregateSignature) {
+TEST(atms, produceAndVerifyAggregateSignature) {
     const char *msg = "some message";
 
     // Test with 5 parties and threshold 4.

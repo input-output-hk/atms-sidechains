@@ -210,7 +210,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     /// let mt = MerkleTree::<Blake2b>::create(&keys);
     /// // Compute the path of keys in position [1, 3, 11, 7].
     /// let indices = vec![1, 3, 7, 11];
-    /// let values = indices.iter().map(|i| keys[*i].clone()).collect();
+    /// let values = indices.iter().map(|i| keys[*i].clone()).collect::<Vec<_>>();
     /// let path = mt.get_batched_path(indices);
     /// // Verify the proof of membership with respect to the merkle commitment.
     /// assert!(mt.to_commitment().check_batched(&values, &path).is_ok());
@@ -251,7 +251,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
                 if ordered_indices[i] & 1 == 0 {
                     new_hashes.push(
                         D::new()
-                            .chain(&values[0])
+                            .chain(&values.get(0).ok_or(MerkleTreeError::InvalidPath)?)
                             .chain(&leaves[i])
                             .finalize()
                             .to_vec(),
@@ -273,7 +273,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
                         new_hashes.push(
                             D::new()
                                 .chain(&leaves[i])
-                                .chain(&values[0])
+                                .chain(&values.get(0).ok_or(MerkleTreeError::InvalidPath)?)
                                 .finalize()
                                 .to_vec(),
                         );
