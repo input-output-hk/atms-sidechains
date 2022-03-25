@@ -813,6 +813,25 @@
 <span id="811">811</span>
 <span id="812">812</span>
 <span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Aggregation module, which contains the mechanisms to compute and verify the</span>
 <span class="doccomment">//! aggregate signatures and keys of an ATMS signature protocol.</span>
 <span class="doccomment">//!</span>
@@ -835,7 +854,7 @@
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">error</span>::{<span class="ident">blst_err_to_atms</span>, <span class="ident">AtmsError</span>},
-    <span class="ident">merkle_tree</span>::{<span class="ident">MerkleTreeCommitment</span>, <span class="ident">Path</span>},
+    <span class="ident">merkle_tree</span>::{<span class="ident">BatchPath</span>, <span class="ident">MerkleTreeCommitment</span>},
     <span class="ident">multi_sig</span>::{<span class="ident">PublicKey</span>, <span class="ident">PublicKeyPoP</span>, <span class="ident">Signature</span>},
     <span class="ident">MerkleTree</span>,
 };
@@ -988,8 +1007,10 @@
 {
     <span class="doccomment">/// The product of the aggregated signatures</span>
     <span class="ident">aggregate</span>: <span class="ident">Signature</span>,
-    <span class="doccomment">/// Proofs of membership of non-signing keys</span>
-    <span class="kw">pub</span> <span class="ident">keys_proofs</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">PublicKey</span>, <span class="ident">Path</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>)<span class="op">&gt;</span>,
+    <span class="doccomment">/// Non-signing keys</span>
+    <span class="kw">pub</span> <span class="ident">keys</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Batch proof of membership of non-signing keys</span>
+    <span class="kw">pub</span> <span class="ident">batch_proof</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BatchPath</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span> <span class="ident">Registration</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>
@@ -1128,24 +1149,25 @@
         <span class="ident">sigs</span>: <span class="kw-2">&amp;</span>[(<span class="ident">PublicKey</span>, <span class="ident">Signature</span>)],
         <span class="ident">msg</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">AtmsError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">signers</span> <span class="op">=</span> <span class="ident">sigs</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">k</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">HashSet</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
-        <span class="kw">let</span> <span class="ident">keys_proofs</span> <span class="op">=</span> <span class="ident">registration</span>
-            .<span class="ident">leaf_map</span>
-            .<span class="ident">keys</span>()
-            .<span class="ident">filter_map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">k</span><span class="op">|</span> {
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">signers</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">k</span>) {
-                    <span class="kw">let</span> <span class="kw-2">&amp;</span><span class="ident">idx</span> <span class="op">=</span> <span class="ident">registration</span>.<span class="ident">leaf_map</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">k</span>)<span class="question-mark">?</span>;
-                    <span class="prelude-val">Some</span>((<span class="ident">k</span>, <span class="ident">registration</span>.<span class="ident">tree</span>.<span class="ident">get_path</span>(<span class="ident">idx</span>)))
-                } <span class="kw">else</span> {
-                    <span class="prelude-val">None</span>
-                }
-            })
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw">_</span>, <span class="kw">_</span>)<span class="op">&gt;</span><span class="op">&gt;</span>();
-
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unique_sigs</span> <span class="op">=</span> <span class="ident">sigs</span>.<span class="ident">to_vec</span>();
         <span class="ident">unique_sigs</span>.<span class="ident">sort_unstable</span>();
         <span class="comment">// make sure that we remove duplicates.</span>
         <span class="ident">unique_sigs</span>.<span class="ident">dedup</span>();
+
+        <span class="kw">let</span> <span class="ident">signers</span> <span class="op">=</span> <span class="ident">unique_sigs</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">k</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">HashSet</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">non_signer_indices</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="ident">registration</span>.<span class="ident">tree</span>.<span class="ident">n</span> <span class="op">-</span> <span class="ident">unique_sigs</span>.<span class="ident">len</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys</span> <span class="op">=</span> <span class="ident">registration</span>
+            .<span class="ident">leaf_map</span>
+            .<span class="ident">keys</span>()
+            .<span class="ident">filter_map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">k</span><span class="op">|</span> {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">signers</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">k</span>) {
+                    <span class="ident">non_signer_indices</span>.<span class="ident">push</span>(<span class="kw-2">*</span><span class="ident">registration</span>.<span class="ident">leaf_map</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">k</span>)<span class="question-mark">?</span>);
+                    <span class="prelude-val">Some</span>(<span class="ident">k</span>)
+                } <span class="kw">else</span> {
+                    <span class="prelude-val">None</span>
+                }
+            })
+            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
 
         <span class="kw">let</span> <span class="ident">aggregate</span>: <span class="ident">Signature</span> <span class="op">=</span> <span class="ident">unique_sigs</span>
             .<span class="ident">iter</span>()
@@ -1159,9 +1181,22 @@
             .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Signature</span><span class="op">&gt;</span>, <span class="ident">AtmsError</span><span class="op">&gt;</span><span class="op">&gt;</span>()<span class="question-mark">?</span>
             .<span class="ident">iter</span>()
             .<span class="ident">sum</span>();
+
+        <span class="kw">let</span> <span class="ident">batch_proof</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">keys</span>.<span class="ident">is_empty</span>() {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="comment">// We need to order keys and indices. Note that before committing to the keys</span>
+            <span class="comment">// we order the slice, therefore the indices will be ordered with respect to the</span>
+            <span class="comment">// keys</span>
+            <span class="ident">keys</span>.<span class="ident">sort_unstable</span>();
+            <span class="ident">non_signer_indices</span>.<span class="ident">sort_unstable</span>();
+            <span class="prelude-val">Some</span>(<span class="ident">registration</span>.<span class="ident">tree</span>.<span class="ident">get_batched_path</span>(<span class="ident">non_signer_indices</span>))
+        };
+
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
             <span class="ident">aggregate</span>,
-            <span class="ident">keys_proofs</span>,
+            <span class="ident">keys</span>,
+            <span class="ident">batch_proof</span>,
         })
     }
 
@@ -1230,28 +1265,30 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unique_non_signers</span> <span class="op">=</span> <span class="ident">HashSet::new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">non_signing_size</span> <span class="op">=</span> <span class="number">0</span>;
 
-        <span class="comment">// Check inclusion proofs</span>
-        <span class="comment">// todo: best compress or serialize?</span>
-        <span class="kw">for</span> (<span class="ident">non_signer</span>, <span class="ident">proof</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">keys_proofs</span> {
-            <span class="kw">if</span> <span class="ident">avk</span>
-                .<span class="ident">mt_commitment</span>
-                .<span class="ident">check</span>(<span class="kw-2">&amp;</span><span class="ident">non_signer</span>.<span class="number">0</span>.<span class="ident">compress</span>(), <span class="ident">proof</span>)
-                .<span class="ident">is_ok</span>()
-            {
-                <span class="ident">non_signing_size</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
-                <span class="comment">// Check non-signers are distinct</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">unique_non_signers</span>.<span class="ident">insert</span>(<span class="ident">non_signer</span>) {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AtmsError::FoundDuplicates</span>(<span class="kw-2">*</span><span class="ident">non_signer</span>));
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">keys</span>.<span class="ident">is_empty</span>() {
+            <span class="comment">// Check inclusion proofs</span>
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">proof</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">batch_proof</span> {
+                <span class="kw">let</span> <span class="ident">compressed_keys</span> <span class="op">=</span> <span class="self">self</span>
+                    .<span class="ident">keys</span>
+                    .<span class="ident">iter</span>()
+                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">k</span><span class="op">|</span> <span class="ident">k</span>.<span class="number">0</span>.<span class="ident">compress</span>().<span class="ident">to_vec</span>())
+                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
+                <span class="ident">avk</span>.<span class="ident">mt_commitment</span>.<span class="ident">check_batched</span>(<span class="kw-2">&amp;</span><span class="ident">compressed_keys</span>, <span class="ident">proof</span>)<span class="question-mark">?</span>;
+                <span class="comment">// todo: best compress or serialize?</span>
+                <span class="kw">for</span> <span class="ident">non_signer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">keys</span> {
+                    <span class="ident">non_signing_size</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+                    <span class="comment">// Check non-signers are distinct</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">unique_non_signers</span>.<span class="ident">insert</span>(<span class="ident">non_signer</span>) {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AtmsError::FoundDuplicates</span>(<span class="kw-2">*</span><span class="ident">non_signer</span>));
+                    }
                 }
-            } <span class="kw">else</span> {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AtmsError::InvalidMerkleProof</span>(<span class="kw-2">*</span><span class="ident">non_signer</span>));
             }
-        }
 
-        <span class="comment">// The threshold is k, for n = 3*k + 1</span>
-        <span class="macro">assert!</span>(<span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="ident">threshold</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&gt;</span><span class="op">=</span> (<span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="number">1</span>) <span class="op">/</span> <span class="number">3</span>);
-        <span class="kw">if</span> <span class="ident">non_signing_size</span> <span class="op">&gt;</span> <span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="ident">threshold</span> {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AtmsError::TooMuchOutstandingSigners</span>(<span class="ident">non_signing_size</span>));
+            <span class="comment">// The threshold is k, for n = 3*k + 1</span>
+            <span class="macro">assert!</span>(<span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="ident">threshold</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&gt;</span><span class="op">=</span> (<span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="number">1</span>) <span class="op">/</span> <span class="number">3</span>);
+            <span class="kw">if</span> <span class="ident">non_signing_size</span> <span class="op">&gt;</span> <span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="ident">threshold</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AtmsError::TooMuchOutstandingSigners</span>(<span class="ident">non_signing_size</span>));
+            }
         }
         <span class="comment">// Check with the underlying signature scheme that the quotient of the</span>
         <span class="comment">// aggregated key by the non-signers validates this signature.</span>
@@ -1269,24 +1306,25 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Layout</span>
     <span class="doccomment">/// The layout of an `AggregateSignature` is</span>
-    <span class="doccomment">/// * Number of non-signers</span>
-    <span class="doccomment">/// * Size of membership proofs</span>
+    <span class="doccomment">/// * Number of non-signers, $t$</span>
     <span class="doccomment">/// * Aggregate signature</span>
-    <span class="doccomment">/// * $t$ public keys and their proofs of membership in the merkle commitment</span>
+    <span class="doccomment">/// * $t$ public keys</span>
+    <span class="doccomment">/// * Batch membership proof</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="comment">// todo: lets do with_capacity here</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregate_sig_bytes</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
-        <span class="kw">let</span> <span class="ident">nr_non_signers</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">keys_proofs</span>.<span class="ident">len</span>();
+        <span class="kw">let</span> <span class="ident">nr_non_signers</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">keys</span>.<span class="ident">len</span>();
         <span class="ident">aggregate_sig_bytes</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">nr_non_signers</span>.<span class="ident">to_be_bytes</span>());
-        <span class="kw">if</span> <span class="ident">nr_non_signers</span> <span class="op">&gt;</span> <span class="number">0</span> {
-            <span class="ident">aggregate_sig_bytes</span>
-                .<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">1</span>.<span class="ident">values</span>.<span class="ident">len</span>().<span class="ident">to_be_bytes</span>());
-        }
+
         <span class="ident">aggregate_sig_bytes</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">aggregate</span>.<span class="ident">to_bytes</span>());
-        <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">proof</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">keys_proofs</span> {
+        <span class="kw">for</span> <span class="ident">key</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">keys</span> {
             <span class="ident">aggregate_sig_bytes</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>.<span class="ident">to_bytes</span>());
-            <span class="ident">aggregate_sig_bytes</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">proof</span>.<span class="ident">to_bytes</span>())
         }
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">proof</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">batch_proof</span> {
+            <span class="ident">aggregate_sig_bytes</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">proof</span>.<span class="ident">to_bytes</span>());
+        }
+
         <span class="ident">aggregate_sig_bytes</span>
     }
 
@@ -1295,30 +1333,29 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">u64_bytes</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">8</span>];
         <span class="ident">u64_bytes</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[..<span class="number">8</span>]);
         <span class="comment">// todo: properly handle this</span>
-        <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">u64::from_be_bytes</span>(<span class="ident">u64_bytes</span>) <span class="kw">as</span> <span class="ident">usize</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offset</span> <span class="op">=</span> <span class="number">8</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">size_proofs</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">if</span> <span class="ident">size</span> <span class="op">&gt;</span> <span class="number">0</span> {
-            <span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="number">8</span>;
-            <span class="ident">u64_bytes</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="number">8</span>..<span class="number">16</span>]);
-            <span class="comment">// todo: properly handle this</span>
-            <span class="ident">size_proofs</span> <span class="op">=</span> <span class="ident">u64::from_be_bytes</span>(<span class="ident">u64_bytes</span>) <span class="kw">as</span> <span class="ident">usize</span>;
-        }
-        <span class="kw">let</span> <span class="ident">aggregate</span> <span class="op">=</span> <span class="ident">Signature::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">offset</span>..])<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys_proofs</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">PublicKey</span>, <span class="ident">Path</span><span class="op">&lt;</span><span class="ident">H</span><span class="op">&gt;</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="ident">size</span>);
+        <span class="kw">let</span> <span class="ident">non_signers</span> <span class="op">=</span> <span class="ident">u64::from_be_bytes</span>(<span class="ident">u64_bytes</span>) <span class="kw">as</span> <span class="ident">usize</span>;
 
-        <span class="kw">let</span> <span class="ident">pk_n_proof_size</span> <span class="op">=</span> <span class="number">48</span> <span class="op">+</span> <span class="ident">H::output_size</span>() <span class="op">*</span> <span class="ident">size_proofs</span> <span class="op">+</span> <span class="number">16</span>; <span class="comment">// plus 16 for the index and depth</span>
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">size</span> {
-            <span class="kw">let</span> <span class="ident">pk_offset</span> <span class="op">=</span> <span class="number">112</span> <span class="op">+</span> <span class="ident">i</span> <span class="op">*</span> <span class="ident">pk_n_proof_size</span>;
-            <span class="kw">let</span> <span class="ident">proof_offset</span> <span class="op">=</span> <span class="ident">pk_offset</span> <span class="op">+</span> <span class="number">48</span>;
+        <span class="kw">let</span> <span class="ident">aggregate</span> <span class="op">=</span> <span class="ident">Signature::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="number">8</span>..])<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="ident">non_signers</span>);
+
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">non_signers</span> {
+            <span class="kw">let</span> <span class="ident">pk_offset</span> <span class="op">=</span> <span class="number">104</span> <span class="op">+</span> <span class="ident">i</span> <span class="op">*</span> <span class="number">48</span>;
             <span class="kw">let</span> <span class="ident">pk</span> <span class="op">=</span> <span class="ident">PublicKey::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">pk_offset</span>..])<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">proof</span> <span class="op">=</span> <span class="ident">Path::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">proof_offset</span>..])<span class="question-mark">?</span>;
-            <span class="ident">keys_proofs</span>.<span class="ident">push</span>((<span class="ident">pk</span>, <span class="ident">proof</span>));
+
+            <span class="ident">keys</span>.<span class="ident">push</span>(<span class="ident">pk</span>);
         }
+
+        <span class="kw">let</span> <span class="ident">batch_proof</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">non_signers</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="kw">let</span> <span class="ident">proof_offset</span> <span class="op">=</span> <span class="number">104</span> <span class="op">+</span> <span class="ident">non_signers</span> <span class="op">*</span> <span class="number">48</span>;
+            <span class="prelude-val">Some</span>(<span class="ident">BatchPath::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">proof_offset</span>..])<span class="question-mark">?</span>)
+        } <span class="kw">else</span> {
+            <span class="prelude-val">None</span>
+        };
 
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
             <span class="ident">aggregate</span>,
-            <span class="ident">keys_proofs</span>,
+            <span class="ident">keys</span>,
+            <span class="ident">batch_proof</span>,
         })
     }
 }
@@ -1594,32 +1631,33 @@
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggr_sig</span> <span class="op">=</span> <span class="ident">AggregateSig::new</span>(<span class="kw-2">&amp;</span><span class="ident">atms_registration</span>, <span class="kw-2">&amp;</span><span class="ident">subset</span>, <span class="kw-2">&amp;</span><span class="ident">msg</span>).<span class="ident">expect</span>(<span class="string">&quot;Signatures should be valid&quot;</span>);
 
-            <span class="kw">let</span> <span class="ident">false_susbset</span>: [(<span class="ident">PublicKey</span>, <span class="ident">Signature</span>); <span class="number">1</span>] <span class="op">=</span> [<span class="ident">signatures</span>[<span class="ident">false_mk_proof</span> <span class="op">%</span> <span class="ident">n</span>]];
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">false_susbset</span> <span class="op">=</span> <span class="ident">subset</span>.<span class="ident">clone</span>();
+            <span class="ident">false_susbset</span>[<span class="number">0</span>] <span class="op">=</span> <span class="ident">signatures</span>[<span class="ident">false_mk_proof</span> <span class="op">%</span> <span class="ident">n</span>];
             <span class="kw">let</span> <span class="ident">false_aggr</span> <span class="op">=</span> <span class="ident">AggregateSig::new</span>(<span class="kw-2">&amp;</span><span class="ident">atms_registration</span>, <span class="kw-2">&amp;</span><span class="ident">false_susbset</span>, <span class="kw-2">&amp;</span><span class="ident">msg</span>).<span class="ident">expect</span>(<span class="string">&quot;Signatures should be valid&quot;</span>);
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>.<span class="ident">is_empty</span>() {
-                <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">1</span> <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">1</span>.<span class="ident">clone</span>();
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span> <span class="op">&amp;&amp;</span> <span class="ident">repeate_non_signer</span> <span class="op">==</span> <span class="number">1</span> {
-                <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span> <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">1</span>].<span class="number">0</span>;
-                <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">1</span> <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">1</span>].<span class="number">1</span>.<span class="ident">clone</span>();
+            <span class="kw">if</span> <span class="ident">aggr_sig</span>.<span class="ident">keys</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="ident">false_aggr</span>.<span class="ident">keys</span>.<span class="ident">len</span>() {
+                <span class="ident">aggr_sig</span>.<span class="ident">batch_proof</span> <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">batch_proof</span>.<span class="ident">clone</span>();
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">aggr_sig</span>.<span class="ident">keys</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span> <span class="op">&amp;&amp;</span> <span class="ident">repeate_non_signer</span> <span class="op">==</span> <span class="number">1</span> {
+                <span class="ident">aggr_sig</span>.<span class="ident">keys</span>[<span class="number">0</span>] <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">keys</span>[<span class="number">1</span>];
+                <span class="ident">aggr_sig</span>.<span class="ident">batch_proof</span> <span class="op">=</span> <span class="ident">false_aggr</span>.<span class="ident">batch_proof</span>.<span class="ident">clone</span>();
             }
 
             <span class="kw">match</span> <span class="ident">aggr_sig</span>.<span class="ident">verify</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>, <span class="kw-2">&amp;</span><span class="ident">avk</span>, <span class="ident">threshold</span>) {
                 <span class="prelude-val">Ok</span>(()) =&gt; {
                     <span class="macro">assert!</span>(<span class="ident">subset</span>.<span class="ident">len</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="ident">threshold</span>);
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>.<span class="ident">is_empty</span>() {
-                        <span class="macro">assert_eq!</span>(<span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span>, <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span>);
+                    <span class="kw">if</span> <span class="ident">aggr_sig</span>.<span class="ident">keys</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span> <span class="op">&amp;&amp;</span> <span class="ident">repeate_non_signer</span> <span class="op">==</span> <span class="number">1</span> {
+                        <span class="macro">assert_eq!</span>(<span class="ident">aggr_sig</span>.<span class="ident">keys</span>[<span class="number">0</span>], <span class="ident">false_aggr</span>.<span class="ident">keys</span>[<span class="number">1</span>]);
                     }
                 },
                 <span class="prelude-val">Err</span>(<span class="ident">AtmsError::TooMuchOutstandingSigners</span>(<span class="ident">d</span>)) =&gt; {
                     <span class="macro">assert!</span>(<span class="ident">d</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">avk</span>.<span class="ident">nr_parties</span> <span class="op">-</span> <span class="ident">threshold</span>);
                 }
-                <span class="prelude-val">Err</span>(<span class="ident">AtmsError::InvalidMerkleProof</span>(<span class="ident">pk</span>)) =&gt; {
-                    <span class="macro">assert_eq!</span>(<span class="ident">pk</span>, <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span>);
-                    <span class="macro">assert_ne!</span>(<span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span>, <span class="ident">false_aggr</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span>);
+                <span class="prelude-val">Err</span>(<span class="ident">AtmsError::InvalidMerkleProof</span>) =&gt; {
+                    <span class="macro">assert!</span>(<span class="ident">false_mk_proof</span> <span class="op">%</span> <span class="ident">n</span> <span class="op">!</span><span class="op">=</span> <span class="ident">subset_is</span>[<span class="number">0</span>] <span class="op">|</span><span class="op">|</span> <span class="ident">repeate_non_signer</span> <span class="op">==</span> <span class="number">1</span>);
+                    <span class="macro">assert_ne!</span>(<span class="ident">false_susbset</span>.<span class="ident">to_vec</span>(), <span class="ident">subset</span>);
                 }
                 <span class="prelude-val">Err</span>(<span class="ident">AtmsError::FoundDuplicates</span>(<span class="ident">pk</span>)) =&gt; {
                     <span class="macro">assert_eq!</span>(<span class="ident">repeate_non_signer</span>, <span class="number">1</span>);
-                    <span class="macro">assert_eq!</span>(<span class="ident">pk</span>, <span class="ident">aggr_sig</span>.<span class="ident">keys_proofs</span>[<span class="number">0</span>].<span class="number">0</span>);
+                    <span class="macro">assert_eq!</span>(<span class="ident">pk</span>, <span class="ident">aggr_sig</span>.<span class="ident">keys</span>[<span class="number">0</span>]);
                 }
                 <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; <span class="macro">unreachable!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">err</span>)
             }

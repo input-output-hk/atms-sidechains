@@ -619,6 +619,40 @@
 <span id="617">617</span>
 <span id="618">618</span>
 <span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Merkle tree module, exposing several ops on Merkle Trees.</span>
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::MerkleTreeError</span>;
 <span class="kw">use</span> <span class="ident">digest</span>::{<span class="ident">Digest</span>, <span class="ident">FixedOutput</span>};
@@ -642,7 +676,7 @@
 <span class="doccomment">/// trivial $k \cdot h$ solution of appending $k$ paths.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BatchPath</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">Digest</span> <span class="op">+</span> <span class="ident">FixedOutput</span><span class="op">&gt;</span> {
-    <span class="ident">values</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">values</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">indices</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
     <span class="ident">hasher</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>,
 }
@@ -809,9 +843,37 @@
     }
 
     <span class="doccomment">/// Check a proof of a batched opening</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Error</span>
+    <span class="doccomment">/// Returns an error if the proof is invalid.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Example</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// # use rand_core::{OsRng, RngCore};</span>
+    <span class="doccomment">/// # use atms::MerkleTree;</span>
+    <span class="doccomment">/// # use blake2::Blake2b;</span>
+    <span class="doccomment">/// # fn main() {</span>
+    <span class="doccomment">/// let mut rng = OsRng::default();</span>
+    <span class="doccomment">/// // We generate the keys.</span>
+    <span class="doccomment">/// let mut keys = Vec::with_capacity(32);</span>
+    <span class="doccomment">/// for _ in 0..32 {</span>
+    <span class="doccomment">///     let mut leaf = [0u8; 32];</span>
+    <span class="doccomment">///     rng.fill_bytes(&amp;mut leaf);</span>
+    <span class="doccomment">///     keys.push(leaf.to_vec());</span>
+    <span class="doccomment">/// }</span>
+    <span class="doccomment">/// // Compute the Merkle tree of the keys.</span>
+    <span class="doccomment">/// let mt = MerkleTree::&lt;Blake2b&gt;::create(&amp;keys);</span>
+    <span class="doccomment">/// // Compute the path of keys in position [1, 3, 11, 7].</span>
+    <span class="doccomment">/// let indices = vec![1, 3, 7, 11];</span>
+    <span class="doccomment">/// let values = indices.iter().map(|i| keys[*i].clone()).collect::&lt;Vec&lt;_&gt;&gt;();</span>
+    <span class="doccomment">/// let path = mt.get_batched_path(indices);</span>
+    <span class="doccomment">/// // Verify the proof of membership with respect to the merkle commitment.</span>
+    <span class="doccomment">/// assert!(mt.to_commitment().check_batched(&amp;values, &amp;path).is_ok());</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # }</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_batched</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">batch_val</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+        <span class="ident">batch_val</span>: <span class="kw-2">&amp;</span>[<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>],
         <span class="ident">proof</span>: <span class="kw-2">&amp;</span><span class="ident">BatchPath</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">MerkleTreeError</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="ident">batch_val</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">proof</span>.<span class="ident">indices</span>.<span class="ident">len</span>() {
@@ -844,7 +906,7 @@
                 <span class="kw">if</span> <span class="ident">ordered_indices</span>[<span class="ident">i</span>] <span class="op">&amp;</span> <span class="number">1</span> <span class="op">==</span> <span class="number">0</span> {
                     <span class="ident">new_hashes</span>.<span class="ident">push</span>(
                         <span class="ident">D::new</span>()
-                            .<span class="ident">chain</span>(<span class="kw-2">&amp;</span><span class="ident">values</span>[<span class="number">0</span>])
+                            .<span class="ident">chain</span>(<span class="kw-2">&amp;</span><span class="ident">values</span>.<span class="ident">get</span>(<span class="number">0</span>).<span class="ident">ok_or</span>(<span class="ident">MerkleTreeError::InvalidPath</span>)<span class="question-mark">?</span>)
                             .<span class="ident">chain</span>(<span class="kw-2">&amp;</span><span class="ident">leaves</span>[<span class="ident">i</span>])
                             .<span class="ident">finalize</span>()
                             .<span class="ident">to_vec</span>(),
@@ -866,7 +928,7 @@
                         <span class="ident">new_hashes</span>.<span class="ident">push</span>(
                             <span class="ident">D::new</span>()
                                 .<span class="ident">chain</span>(<span class="kw-2">&amp;</span><span class="ident">leaves</span>[<span class="ident">i</span>])
-                                .<span class="ident">chain</span>(<span class="kw-2">&amp;</span><span class="ident">values</span>[<span class="number">0</span>])
+                                .<span class="ident">chain</span>(<span class="kw-2">&amp;</span><span class="ident">values</span>.<span class="ident">get</span>(<span class="number">0</span>).<span class="ident">ok_or</span>(<span class="ident">MerkleTreeError::InvalidPath</span>)<span class="question-mark">?</span>)
                                 .<span class="ident">finalize</span>()
                                 .<span class="ident">to_vec</span>(),
                         );
@@ -925,7 +987,7 @@
     <span class="doccomment">/// The leaves begin at `nodes[leaf_off]`</span>
     <span class="ident">leaf_off</span>: <span class="ident">usize</span>,
     <span class="doccomment">/// Number of leaves cached here</span>
-    <span class="ident">n</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">n</span>: <span class="ident">usize</span>,
     <span class="doccomment">/// Phantom type to link the tree with its hasher</span>
     <span class="ident">hasher</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>,
 }
@@ -1016,6 +1078,10 @@
     <span class="doccomment">/// indices at the upper level. We then compute the index of its sibling. If the next</span>
     <span class="doccomment">/// index to authenticate happens to be the sibling, then we skip the sibling.</span>
     <span class="doccomment">/// Otherwise, we add the sibling to the list of authentication nodes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">/// If the indices provided are out of bounds (higher than the number of elements</span>
+    <span class="doccomment">/// committed in the `MerkleTree`) or are not ordered, the function fails.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_batched_path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">indices</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) -&gt; <span class="ident">BatchPath</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span> {
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">indices</span> {
             <span class="macro">assert!</span>(
@@ -1026,13 +1092,15 @@
             );
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ordered_indices</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">indices</span>
-            .<span class="ident">clone</span>()
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ordered_indices</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">indices</span>.<span class="ident">clone</span>();
+        <span class="ident">ordered_indices</span>.<span class="ident">sort_unstable</span>();
+
+        <span class="macro">assert_eq!</span>(<span class="ident">ordered_indices</span>, <span class="ident">indices</span>, <span class="string">&quot;Indices should be ordered&quot;</span>);
+
+        <span class="ident">ordered_indices</span> <span class="op">=</span> <span class="ident">ordered_indices</span>
             .<span class="ident">into_iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">idx_of_leaf</span>(<span class="ident">i</span>))
             .<span class="ident">collect</span>();
-
-        <span class="ident">ordered_indices</span>.<span class="ident">sort_unstable</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">idx</span> <span class="op">=</span> <span class="ident">ordered_indices</span>[<span class="number">0</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">proof</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
@@ -1164,11 +1232,11 @@
             <span class="ident">batch_indices</span>.<span class="ident">sort_unstable</span>();
             <span class="ident">batch_indices</span>.<span class="ident">dedup</span>();
 
-            <span class="kw">let</span> <span class="ident">batch_values</span> <span class="op">=</span> <span class="ident">batch_indices</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">v</span><span class="op">|</span> <span class="ident">values</span>[<span class="ident">v</span>].<span class="ident">clone</span>()).<span class="ident">collect</span>();
+            <span class="kw">let</span> <span class="ident">batch_values</span> <span class="op">=</span> <span class="ident">batch_indices</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">v</span><span class="op">|</span> <span class="ident">values</span>[<span class="ident">v</span>].<span class="ident">clone</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
             <span class="kw">let</span> <span class="ident">batch_proof</span> <span class="op">=</span> <span class="ident">t</span>.<span class="ident">get_batched_path</span>(<span class="ident">batch_indices</span>);
 
             <span class="kw">let</span> <span class="ident">mt_commitment</span> <span class="op">=</span> <span class="ident">t</span>.<span class="ident">to_commitment</span>();
-            <span class="macro">assert!</span>(<span class="ident">mt_commitment</span>.<span class="ident">check_batched</span>(<span class="ident">batch_values</span>, <span class="kw-2">&amp;</span><span class="ident">batch_proof</span>).<span class="ident">is_ok</span>());
+            <span class="macro">assert!</span>(<span class="ident">mt_commitment</span>.<span class="ident">check_batched</span>(<span class="kw-2">&amp;</span><span class="ident">batch_values</span>, <span class="kw-2">&amp;</span><span class="ident">batch_proof</span>).<span class="ident">is_ok</span>());
         }
 
         <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1200,14 +1268,14 @@
             <span class="ident">batch_indices</span>.<span class="ident">sort_unstable</span>();
             <span class="ident">batch_indices</span>.<span class="ident">dedup</span>();
 
-            <span class="kw">let</span> <span class="ident">batch_values</span> <span class="op">=</span> <span class="ident">batch_indices</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">v</span><span class="op">|</span> <span class="ident">values</span>[<span class="ident">v</span>].<span class="ident">clone</span>()).<span class="ident">collect</span>();
+            <span class="kw">let</span> <span class="ident">batch_values</span> <span class="op">=</span> <span class="ident">batch_indices</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">v</span><span class="op">|</span> <span class="ident">values</span>[<span class="ident">v</span>].<span class="ident">clone</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
             <span class="kw">let</span> <span class="ident">batch_proof</span> <span class="op">=</span> <span class="ident">t</span>.<span class="ident">get_batched_path</span>(<span class="ident">batch_indices</span>);
 
             <span class="kw">let</span> <span class="ident">proof_bytes</span> <span class="op">=</span> <span class="ident">batch_proof</span>.<span class="ident">to_bytes</span>();
             <span class="kw">let</span> <span class="ident">proof</span> <span class="op">=</span> <span class="ident">BatchPath::from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">proof_bytes</span>).<span class="ident">unwrap</span>();
 
             <span class="kw">let</span> <span class="ident">mt_commitment</span> <span class="op">=</span> <span class="ident">t</span>.<span class="ident">to_commitment</span>();
-            <span class="macro">assert!</span>(<span class="ident">mt_commitment</span>.<span class="ident">check_batched</span>(<span class="ident">batch_values</span>, <span class="kw-2">&amp;</span><span class="ident">proof</span>).<span class="ident">is_ok</span>());
+            <span class="macro">assert!</span>(<span class="ident">mt_commitment</span>.<span class="ident">check_batched</span>(<span class="kw-2">&amp;</span><span class="ident">batch_values</span>, <span class="kw-2">&amp;</span><span class="ident">proof</span>).<span class="ident">is_ok</span>());
         }
     }
 
