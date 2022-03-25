@@ -9,9 +9,9 @@ pub enum AtmsError {
     /// This error occurs when one tries to register an existing key
     #[error("Cannot register existing key.")]
     RegisterExistingKey(PublicKey),
-    /// The proof that `PK` is at a given idx is false
+    /// The proof that a batch of `PK`s are members of the MerkleTree is false
     #[error("Proof of Merkle Tree membership is invalid.")]
-    InvalidMerkleProof(PublicKey),
+    InvalidMerkleProof,
     /// A key submitted for aggregation is invalid.
     #[error("Invalid key provided in the set of keys.")]
     InvalidKey,
@@ -68,7 +68,10 @@ pub enum MerkleTreeError {
 }
 
 impl From<MerkleTreeError> for AtmsError {
-    fn from(_: MerkleTreeError) -> Self {
-        AtmsError::SerializationError
+    fn from(e: MerkleTreeError) -> Self {
+        match e {
+            MerkleTreeError::InvalidPath => AtmsError::InvalidMerkleProof,
+            _ => AtmsError::SerializationError,
+        }
     }
 }

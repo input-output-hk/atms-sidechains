@@ -274,7 +274,7 @@ pub extern "C" fn atms_verify_aggr(
                 Ok(_) => 0,
                 Err(AtmsError::TooMuchOutstandingSigners(_)) => -1,
                 Err(AtmsError::FoundDuplicates(_)) => -2,
-                Err(AtmsError::InvalidMerkleProof(_)) => -3,
+                Err(AtmsError::InvalidMerkleProof) => -3,
                 Err(AtmsError::InvalidSignature) => -4,
                 Err(AtmsError::UnexpectedBlstTypes) => -5,
                 Err(AtmsError::SerializationError) => -6,

@@ -21,7 +21,7 @@ pub struct Path<D: Digest + FixedOutput> {
 /// trivial $k \cdot h$ solution of appending $k$ paths.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BatchPath<D: Digest + FixedOutput> {
-    values: Vec<Vec<u8>>,
+    pub(crate) values: Vec<Vec<u8>>,
     indices: Vec<usize>,
     hasher: PhantomData<D>,
 }
@@ -188,9 +188,37 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     }
 
     /// Check a proof of a batched opening
+    ///
+    /// # Error
+    /// Returns an error if the proof is invalid.
+    ///
+    /// # Example
+    /// ```
+    /// # use rand_core::{OsRng, RngCore};
+    /// # use atms::MerkleTree;
+    /// # use blake2::Blake2b;
+    /// # fn main() {
+    /// let mut rng = OsRng::default();
+    /// // We generate the keys.
+    /// let mut keys = Vec::with_capacity(32);
+    /// for _ in 0..32 {
+    ///     let mut leaf = [0u8; 32];
+    ///     rng.fill_bytes(&mut leaf);
+    ///     keys.push(leaf.to_vec());
+    /// }
+    /// // Compute the Merkle tree of the keys.
+    /// let mt = MerkleTree::<Blake2b>::create(&keys);
+    /// // Compute the path of keys in position [1, 3, 11, 7].
+    /// let indices = vec![1, 3, 7, 11];
+    /// let values = indices.iter().map(|i| keys[*i].clone()).collect();
+    /// let path = mt.get_batched_path(indices);
+    /// // Verify the proof of membership with respect to the merkle commitment.
+    /// assert!(mt.to_commitment().check_batched(&values, &path).is_ok());
+    ///
+    /// # }
     pub fn check_batched(
         &self,
-        batch_val: Vec<Vec<u8>>,
+        batch_val: &[Vec<u8>],
         proof: &BatchPath<D>,
     ) -> Result<(), MerkleTreeError> {
         if batch_val.len() != proof.indices.len() {
@@ -304,7 +332,7 @@ pub struct MerkleTree<D: Digest + FixedOutput> {
     /// The leaves begin at `nodes[leaf_off]`
     leaf_off: usize,
     /// Number of leaves cached here
-    n: usize,
+    pub(crate) n: usize,
     /// Phantom type to link the tree with its hasher
     hasher: PhantomData<D>,
 }
@@ -395,6 +423,10 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
     /// indices at the upper level. We then compute the index of its sibling. If the next
     /// index to authenticate happens to be the sibling, then we skip the sibling.
     /// Otherwise, we add the sibling to the list of authentication nodes.
+    ///
+    /// # Panics
+    /// If the indices provided are out of bounds (higher than the number of elements
+    /// committed in the `MerkleTree`) or are not ordered, the function fails.
     pub fn get_batched_path(&self, indices: Vec<usize>) -> BatchPath<D> {
         for i in &indices {
             assert!(
@@ -405,13 +437,15 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
             );
         }
 
-        let mut ordered_indices: Vec<usize> = indices
-            .clone()
+        let mut ordered_indices: Vec<usize> = indices.clone();
+        ordered_indices.sort_unstable();
+
+        assert_eq!(ordered_indices, indices, "Indices should be ordered");
+
+        ordered_indices = ordered_indices
             .into_iter()
             .map(|i| self.idx_of_leaf(i))
             .collect();
-
-        ordered_indices.sort_unstable();
 
         let mut idx = ordered_indices[0];
         let mut proof = Vec::new();
@@ -543,11 +577,11 @@ mod tests {
             batch_indices.sort_unstable();
             batch_indices.dedup();
 
-            let batch_values = batch_indices.iter().map(|&v| values[v].clone()).collect();
+            let batch_values = batch_indices.iter().map(|&v| values[v].clone()).collect::<Vec<_>>();
             let batch_proof = t.get_batched_path(batch_indices);
 
             let mt_commitment = t.to_commitment();
-            assert!(mt_commitment.check_batched(batch_values, &batch_proof).is_ok());
+            assert!(mt_commitment.check_batched(&batch_values, &batch_proof).is_ok());
         }
 
         #[test]
@@ -579,14 +613,14 @@ mod tests {
             batch_indices.sort_unstable();
             batch_indices.dedup();
 
-            let batch_values = batch_indices.iter().map(|&v| values[v].clone()).collect();
+            let batch_values = batch_indices.iter().map(|&v| values[v].clone()).collect::<Vec<_>>();
             let batch_proof = t.get_batched_path(batch_indices);
 
             let proof_bytes = batch_proof.to_bytes();
             let proof = BatchPath::from_bytes(&proof_bytes).unwrap();
 
             let mt_commitment = t.to_commitment();
-            assert!(mt_commitment.check_batched(batch_values, &proof).is_ok());
+            assert!(mt_commitment.check_batched(&batch_values, &proof).is_ok());
         }
     }
 

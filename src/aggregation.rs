@@ -20,7 +20,7 @@
 
 use crate::{
     error::{blst_err_to_atms, AtmsError},
-    merkle_tree::{MerkleTreeCommitment, Path},
+    merkle_tree::{BatchPath, MerkleTreeCommitment},
     multi_sig::{PublicKey, PublicKeyPoP, Signature},
     MerkleTree,
 };
@@ -173,8 +173,10 @@ where
 {
     /// The product of the aggregated signatures
     aggregate: Signature,
-    /// Proofs of membership of non-signing keys
-    pub keys_proofs: Vec<(PublicKey, Path<H>)>,
+    /// Non-signing keys
+    pub keys: Vec<PublicKey>,
+    /// Batch proof of membership of non-signing keys
+    pub batch_proof: Option<BatchPath<H>>,
 }
 
 impl<H> Registration<H>
@@ -313,24 +315,25 @@ where
         sigs: &[(PublicKey, Signature)],
         msg: &[u8],
     ) -> Result<Self, AtmsError> {
-        let signers = sigs.iter().map(|(k, _)| k).collect::<HashSet<_>>();
-        let keys_proofs = registration
-            .leaf_map
-            .keys()
-            .filter_map(|&k| {
-                if !signers.contains(&k) {
-                    let &idx = registration.leaf_map.get(&k)?;
-                    Some((k, registration.tree.get_path(idx)))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<(_, _)>>();
-
         let mut unique_sigs = sigs.to_vec();
         unique_sigs.sort_unstable();
         // make sure that we remove duplicates.
         unique_sigs.dedup();
+
+        let signers = unique_sigs.iter().map(|(k, _)| k).collect::<HashSet<_>>();
+        let mut non_signer_indices = Vec::with_capacity(registration.tree.n - unique_sigs.len());
+        let mut keys = registration
+            .leaf_map
+            .keys()
+            .filter_map(|&k| {
+                if !signers.contains(&k) {
+                    non_signer_indices.push(*registration.leaf_map.get(&k)?);
+                    Some(k)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
 
         let aggregate: Signature = unique_sigs
             .iter()
@@ -344,9 +347,22 @@ where
             .collect::<Result<Vec<Signature>, AtmsError>>()?
             .iter()
             .sum();
+
+        let batch_proof = if keys.is_empty() {
+            None
+        } else {
+            // We need to order keys and indices. Note that before committing to the keys
+            // we order the slice, therefore the indices will be ordered with respect to the
+            // keys
+            keys.sort_unstable();
+            non_signer_indices.sort_unstable();
+            Some(registration.tree.get_batched_path(non_signer_indices))
+        };
+
         Ok(Self {
             aggregate,
-            keys_proofs,
+            keys,
+            batch_proof,
         })
     }
 
@@ -415,28 +431,30 @@ where
         let mut unique_non_signers = HashSet::new();
         let mut non_signing_size = 0;
 
-        // Check inclusion proofs
-        // todo: best compress or serialize?
-        for (non_signer, proof) in &self.keys_proofs {
-            if avk
-                .mt_commitment
-                .check(&non_signer.0.compress(), proof)
-                .is_ok()
-            {
-                non_signing_size += 1;
-                // Check non-signers are distinct
-                if !unique_non_signers.insert(non_signer) {
-                    return Err(AtmsError::FoundDuplicates(*non_signer));
+        if !self.keys.is_empty() {
+            // Check inclusion proofs
+            if let Some(proof) = &self.batch_proof {
+                let compressed_keys = self
+                    .keys
+                    .iter()
+                    .map(|k| k.0.compress().to_vec())
+                    .collect::<Vec<_>>();
+                avk.mt_commitment.check_batched(&compressed_keys, proof)?;
+                // todo: best compress or serialize?
+                for non_signer in &self.keys {
+                    non_signing_size += 1;
+                    // Check non-signers are distinct
+                    if !unique_non_signers.insert(non_signer) {
+                        return Err(AtmsError::FoundDuplicates(*non_signer));
+                    }
                 }
-            } else {
-                return Err(AtmsError::InvalidMerkleProof(*non_signer));
             }
-        }
 
-        // The threshold is k, for n = 3*k + 1
-        assert!(avk.nr_parties - threshold as usize >= (avk.nr_parties - 1) / 3);
-        if non_signing_size > avk.nr_parties - threshold {
-            return Err(AtmsError::TooMuchOutstandingSigners(non_signing_size));
+            // The threshold is k, for n = 3*k + 1
+            assert!(avk.nr_parties - threshold as usize >= (avk.nr_parties - 1) / 3);
+            if non_signing_size > avk.nr_parties - threshold {
+                return Err(AtmsError::TooMuchOutstandingSigners(non_signing_size));
+            }
         }
         // Check with the underlying signature scheme that the quotient of the
         // aggregated key by the non-signers validates this signature.
@@ -454,24 +472,25 @@ where
     ///
     /// # Layout
     /// The layout of an `AggregateSignature` is
-    /// * Number of non-signers
-    /// * Size of membership proofs
+    /// * Number of non-signers, $t$
     /// * Aggregate signature
-    /// * $t$ public keys and their proofs of membership in the merkle commitment
+    /// * $t$ public keys
+    /// * Batch membership proof
     pub fn to_bytes(&self) -> Vec<u8> {
         // todo: lets do with_capacity here
         let mut aggregate_sig_bytes = Vec::new();
-        let nr_non_signers = self.keys_proofs.len();
+        let nr_non_signers = self.keys.len();
         aggregate_sig_bytes.extend_from_slice(&nr_non_signers.to_be_bytes());
-        if nr_non_signers > 0 {
-            aggregate_sig_bytes
-                .extend_from_slice(&self.keys_proofs[0].1.values.len().to_be_bytes());
-        }
+
         aggregate_sig_bytes.extend_from_slice(&self.aggregate.to_bytes());
-        for (key, proof) in &self.keys_proofs {
+        for key in &self.keys {
             aggregate_sig_bytes.extend_from_slice(&key.to_bytes());
-            aggregate_sig_bytes.extend_from_slice(&proof.to_bytes())
         }
+
+        if let Some(proof) = &self.batch_proof {
+            aggregate_sig_bytes.extend_from_slice(&proof.to_bytes());
+        }
+
         aggregate_sig_bytes
     }
 
@@ -480,30 +499,29 @@ where
         let mut u64_bytes = [0u8; 8];
         u64_bytes.copy_from_slice(&bytes[..8]);
         // todo: properly handle this
-        let size = u64::from_be_bytes(u64_bytes) as usize;
-        let mut offset = 8;
-        let mut size_proofs = 0;
-        if size > 0 {
-            offset += 8;
-            u64_bytes.copy_from_slice(&bytes[8..16]);
-            // todo: properly handle this
-            size_proofs = u64::from_be_bytes(u64_bytes) as usize;
-        }
-        let aggregate = Signature::from_bytes(&bytes[offset..])?;
-        let mut keys_proofs: Vec<(PublicKey, Path<H>)> = Vec::with_capacity(size);
+        let non_signers = u64::from_be_bytes(u64_bytes) as usize;
 
-        let pk_n_proof_size = 48 + H::output_size() * size_proofs + 16; // plus 16 for the index and depth
-        for i in 0..size {
-            let pk_offset = 112 + i * pk_n_proof_size;
-            let proof_offset = pk_offset + 48;
+        let aggregate = Signature::from_bytes(&bytes[8..])?;
+        let mut keys: Vec<PublicKey> = Vec::with_capacity(non_signers);
+
+        for i in 0..non_signers {
+            let pk_offset = 104 + i * 48;
             let pk = PublicKey::from_bytes(&bytes[pk_offset..])?;
-            let proof = Path::from_bytes(&bytes[proof_offset..])?;
-            keys_proofs.push((pk, proof));
+
+            keys.push(pk);
         }
+
+        let batch_proof = if non_signers > 0 {
+            let proof_offset = 104 + non_signers * 48;
+            Some(BatchPath::from_bytes(&bytes[proof_offset..])?)
+        } else {
+            None
+        };
 
         Ok(Self {
             aggregate,
-            keys_proofs,
+            keys,
+            batch_proof,
         })
     }
 }
@@ -779,32 +797,33 @@ mod tests {
 
             let mut aggr_sig = AggregateSig::new(&atms_registration, &subset, &msg).expect("Signatures should be valid");
 
-            let false_susbset: [(PublicKey, Signature); 1] = [signatures[false_mk_proof % n]];
+            let mut false_susbset = subset.clone();
+            false_susbset[0] = signatures[false_mk_proof % n];
             let false_aggr = AggregateSig::new(&atms_registration, &false_susbset, &msg).expect("Signatures should be valid");
-            if !aggr_sig.keys_proofs.is_empty() {
-                aggr_sig.keys_proofs[0].1 = false_aggr.keys_proofs[0].1.clone();
-            } else if aggr_sig.keys_proofs.len() > 1 && repeate_non_signer == 1 {
-                aggr_sig.keys_proofs[0].0 = false_aggr.keys_proofs[1].0;
-                aggr_sig.keys_proofs[0].1 = false_aggr.keys_proofs[1].1.clone();
+            if aggr_sig.keys.len() == false_aggr.keys.len() {
+                aggr_sig.batch_proof = false_aggr.batch_proof.clone();
+            } else if aggr_sig.keys.len() > 1 && repeate_non_signer == 1 {
+                aggr_sig.keys[0] = false_aggr.keys[1];
+                aggr_sig.batch_proof = false_aggr.batch_proof.clone();
             }
 
             match aggr_sig.verify(&msg, &avk, threshold) {
                 Ok(()) => {
                     assert!(subset.len() >= threshold);
-                    if !aggr_sig.keys_proofs.is_empty() {
-                        assert_eq!(aggr_sig.keys_proofs[0].0, false_aggr.keys_proofs[0].0);
+                    if aggr_sig.keys.len() > 1 && repeate_non_signer == 1 {
+                        assert_eq!(aggr_sig.keys[0], false_aggr.keys[1]);
                     }
                 },
                 Err(AtmsError::TooMuchOutstandingSigners(d)) => {
                     assert!(d >= avk.nr_parties - threshold);
                 }
-                Err(AtmsError::InvalidMerkleProof(pk)) => {
-                    assert_eq!(pk, aggr_sig.keys_proofs[0].0);
-                    assert_ne!(aggr_sig.keys_proofs[0].0, false_aggr.keys_proofs[0].0);
+                Err(AtmsError::InvalidMerkleProof) => {
+                    assert!(false_mk_proof % n != subset_is[0] || repeate_non_signer == 1);
+                    assert_ne!(false_susbset.to_vec(), subset);
                 }
                 Err(AtmsError::FoundDuplicates(pk)) => {
                     assert_eq!(repeate_non_signer, 1);
-                    assert_eq!(pk, aggr_sig.keys_proofs[0].0);
+                    assert_eq!(pk, aggr_sig.keys[0]);
                 }
                 Err(err) => unreachable!("{:?}", err)
             }
