@@ -78,13 +78,6 @@ TEST(atm, serdeAtms) {
     err = avk_key_registration(keys_pop, nr_signers, &registration);
     ASSERT_EQ(err, 0);
 
-    unsigned char *reg_bytes;
-    unsigned long reg_size;
-    err = serialize_registration(registration, &reg_size, &reg_bytes);
-
-    err = deserialize_registration(reg_size, reg_bytes, &registration);
-    ASSERT_EQ(err, 0);
-
     err = atms_registration_to_avk(&avk_pk, registration);
     ASSERT_EQ(err, 0);
 
