@@ -51,7 +51,7 @@ TEST(atms, produceAndVerifyAggregateSignature) {
     ASSERT_EQ(err, 0);
 }
 
-TEST(atm, testingErrors) {
+TEST(atms, testingErrors) {
     const char *msg = "some message";
 
     // Test with 5 parties

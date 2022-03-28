@@ -54,7 +54,7 @@ TEST(multisig, serdeMultiSignature) {
     ASSERT_EQ(err, 0);
 }
 
-TEST(atm, serdeAtms) {
+TEST(atms, serdeAtms) {
     const char *msg = "some message";
 
     // Test with 5 parties and threshold 4.

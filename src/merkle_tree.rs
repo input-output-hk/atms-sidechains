@@ -132,7 +132,7 @@ impl<D: Digest + FixedOutput> BatchPath<D> {
 pub struct MerkleTreeCommitment<D: Digest> {
     /// Root of the merkle tree, representing the commitment of all its leaves.
     pub value: Vec<u8>,
-    /// Number of committed leaves, which will always be padded to the next power of two.
+    /// Number of committed leaves.
     pub nr_leaves: usize,
     /// Phantom type to link commitment to its hasher.
     hasher: PhantomData<D>,
@@ -230,8 +230,11 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
             return Err(MerkleTreeError::InvalidPath);
         }
 
-        ordered_indices = ordered_indices.into_iter()
-            .map(|i| i + self.nr_leaves - 1)
+        let nr_nodes = self.nr_leaves + self.nr_leaves.next_power_of_two() - 1;
+
+        ordered_indices = ordered_indices
+            .into_iter()
+            .map(|i| i + self.nr_leaves.next_power_of_two() - 1)
             .collect();
 
         let mut idx = ordered_indices[0];
@@ -271,7 +274,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
                                 .to_vec(),
                         );
                         i += 1;
-                    } else {
+                    } else if sibling < nr_nodes {
                         new_hashes.push(
                             D::new()
                                 .chain(&leaves[i])
@@ -280,6 +283,14 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
                                 .to_vec(),
                         );
                         values.remove(0);
+                    } else {
+                        new_hashes.push(
+                            D::new()
+                                .chain(&leaves[i])
+                                .chain(&D::digest(&[0u8]))
+                                .finalize()
+                                .to_vec(),
+                        );
                     }
                 }
                 i += 1;
@@ -340,13 +351,11 @@ pub struct MerkleTree<D: Digest + FixedOutput> {
 
 impl<D: Digest + FixedOutput> MerkleTree<D> {
     /// Provide a non-empty list of leaves, `create` generate its corresponding `MerkleTree`.
-    /// If the merkle tree is incomplete, i.e. if `leaves.len()` is not a power of two, we
-    /// pad `leaves` to the next power of two with zero vectors of size `D::output_size()`.
     pub fn create(leaves: &[Vec<u8>]) -> MerkleTree<D> {
-        let n = leaves.len().next_power_of_two();
+        let n = leaves.len();
         assert!(n > 0, "MerkleTree::create() called with no leaves");
 
-        let num_nodes = n + n - 1;
+        let num_nodes = n + n.next_power_of_two() - 1;
 
         let mut nodes = vec![vec![0u8]; num_nodes];
 
@@ -354,16 +363,19 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
             nodes[num_nodes - n + i] = D::digest(&leaves[i].clone()).to_vec();
         }
 
-        for i in leaves.len()..n.next_power_of_two() {
-            nodes[num_nodes - n + i] = D::digest(&[0u8]).to_vec();
-        }
-
         for i in (0..num_nodes - n).rev() {
-            nodes[i] = D::new()
-                .chain(nodes[left_child(i)].clone())
-                .chain(nodes[right_child(i)].clone())
-                .finalize()
-                .to_vec();
+            let z = D::digest(&[0u8]).to_vec();
+            let left = if left_child(i) < num_nodes {
+                &nodes[left_child(i)]
+            } else {
+                &z
+            };
+            let right = if right_child(i) < num_nodes {
+                &nodes[right_child(i)]
+            } else {
+                &z
+            };
+            nodes[i] = D::new().chain(left).chain(right).finalize().to_vec();
         }
 
         Self {
@@ -405,7 +417,7 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
             let h = if sibling(idx) < self.nodes.len() {
                 self.nodes[sibling(idx)].clone()
             } else {
-                self.nodes[idx].clone()
+                D::digest(&[0u8]).to_vec()
             };
             proof.push(h.clone());
             idx = parent(idx);
@@ -429,6 +441,10 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
     /// If the indices provided are out of bounds (higher than the number of elements
     /// committed in the `MerkleTree`) or are not ordered, the function fails.
     pub fn get_batched_path(&self, indices: Vec<usize>) -> BatchPath<D> {
+        assert!(
+            !indices.is_empty(),
+            "get_batched_path() called with no indices"
+        );
         for i in &indices {
             assert!(
                 i < &self.n,
@@ -460,7 +476,7 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
                 let sibling = sibling(ordered_indices[i]);
                 if i < ordered_indices.len() - 1 && ordered_indices[i + 1] == sibling {
                     i += 1;
-                } else {
+                } else if sibling < self.nodes.len() {
                     proof.push(self.nodes[sibling].clone());
                 }
                 i += 1;

@@ -90,7 +90,7 @@ where
     /// let mut rng = OsRng;
     ///
     /// let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
-    /// for _ in 1..=n {
+    /// for _ in 0..n {
     ///     let sk = SigningKey::gen(&mut rng);
     ///     let pkpop = PublicKeyPoP::from(&sk);
     ///     keyspop.push(pkpop);
@@ -160,7 +160,7 @@ where
     /// The Merkle tree containing the set of keys
     tree: MerkleTree<H>,
     /// Mapping to identify position of key within merkle tree
-    leaf_map: HashMap<PublicKey, usize>,
+    leaf_map: HashMap<usize, PublicKey>,
 }
 
 /// An ATMS aggregate signature, contains the multi signature aggregation of all participating signers
@@ -214,7 +214,7 @@ where
         let mut leaf_map = HashMap::new();
         // todo: compress or serialize
         for (index, &key) in checked_keys.iter().enumerate() {
-            if leaf_map.insert(key, index).is_some() {
+            if leaf_map.insert(index, key).is_some() {
                 return Err(AtmsError::RegisterExistingKey(key));
             }
             tree_vec.push(key.0.compress().to_vec());
@@ -225,6 +225,23 @@ where
             tree: MerkleTree::create(&tree_vec),
             leaf_map,
         })
+    }
+
+    /// Returns the indices of the corresponding public key. The output vector is empty if the key is not
+    /// part of the registration, and a tuple if the key is registered in several indices.
+    ///
+    /// # Example
+    /// ```
+    ///
+    /// ```
+    pub fn get_index(&self, pk: &PublicKey) -> Vec<usize> {
+        let mut indices = Vec::new();
+        for (&idx, &reg_pk) in self.leaf_map.iter() {
+            if reg_pk == *pk {
+                indices.push(idx);
+            }
+        }
+        indices
     }
 
     /// Return an `Avk` key from the key registration. This consists of the merkle root
@@ -245,7 +262,7 @@ where
         let mut result = Vec::new();
         result.extend_from_slice(&self.aggregate_key.to_bytes());
         result.extend_from_slice(&self.leaf_map.len().to_be_bytes());
-        for (pk, index) in &self.leaf_map {
+        for (index, pk) in &self.leaf_map {
             result.extend_from_slice(&pk.to_bytes());
             result.extend_from_slice(&index.to_be_bytes());
         }
@@ -275,8 +292,8 @@ where
                 &bytes[hm_offset + hm_element_size * i + 48..hm_offset + hm_element_size * i + 56],
             );
             leaf_map.insert(
-                PublicKey::from_bytes(&bytes[hm_offset + hm_element_size * i..])?,
                 usize::from_be_bytes(idx_bytes),
+                PublicKey::from_bytes(&bytes[hm_offset + hm_element_size * i..])?,
             );
         }
 
@@ -296,7 +313,8 @@ where
 {
     /// Aggregate a list of signatures.
     /// The signature aggregation can again be performed by any third party. Given $d$ pairs of
-    /// signatures, `sigs`,  with their respective public keys $\lbrace\sigma_i, vk_i\rbrace_{i\in Ps}$,
+    /// signatures, `sigs`,  with their respective index representing the index in the merkle
+    /// commitment, $\lbrace\sigma_i, id_i\rbrace_{i\in Ps}$,
     /// the aggregator produces the following aggregate signature. It begins by checking all signatures
     /// are valid, and which public keys
     /// are missing from the tuple of submitted signatures, $\widehat{vk}_i$, and computes their proof
@@ -309,26 +327,24 @@ where
     /// Aggregation returns `AtmsError::NonRegisteredParticipant` if one of the submitted signatures
     /// comes from a non-registered participant, and `AtmsError::InvalidSignature` if one of the
     /// signatures is invalid.
-    // todo: do we want to pass the pks as part of the sigs, or maybe just some indices?
     pub fn new(
         registration: &Registration<H>,
-        sigs: &[(PublicKey, Signature)],
+        sigs: &[(usize, Signature)],
         msg: &[u8],
     ) -> Result<Self, AtmsError> {
         let mut unique_sigs = sigs.to_vec();
         unique_sigs.sort_unstable();
-        // make sure that we remove duplicates.
+        // make sure that we remove duplicate indices
         unique_sigs.dedup();
 
         let signers = unique_sigs.iter().map(|(k, _)| k).collect::<HashSet<_>>();
         let mut non_signer_indices = Vec::with_capacity(registration.tree.n - unique_sigs.len());
-        let mut keys = registration
-            .leaf_map
-            .keys()
-            .filter_map(|&k| {
+        let mut keys = (0..registration.tree.n)
+            .into_iter()
+            .filter_map(|k| {
                 if !signers.contains(&k) {
-                    non_signer_indices.push(*registration.leaf_map.get(&k)?);
-                    Some(k)
+                    non_signer_indices.push(k);
+                    Some(*registration.leaf_map.get(&k)?)
                 } else {
                     None
                 }
@@ -337,12 +353,13 @@ where
 
         let aggregate: Signature = unique_sigs
             .iter()
-            .map(|&(pk, s)| {
-                if !registration.leaf_map.contains_key(&pk) {
-                    return Err(AtmsError::NonRegisteredParticipant);
+            .map(|&(index, s)| {
+                if let Some(pk) = registration.leaf_map.get(&index) {
+                    s.verify(pk, msg)?;
+                    Ok(s)
+                } else {
+                    Err(AtmsError::NonRegisteredParticipant)
                 }
-                s.verify(&pk, msg)?;
-                Ok(s)
             })
             .collect::<Result<Vec<Signature>, AtmsError>>()?
             .iter()
@@ -396,19 +413,28 @@ where
     /// let msg = b"Did you know that Charles Babbage broke the Vigenere cipher?";
     /// let mut rng = OsRng;
     ///
+    /// let mut sk_pks: Vec<(SigningKey, PublicKey)> = Vec::new();
     /// let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
-    /// let mut signatures: Vec<(PublicKey, Signature)> = Vec::new();
-    /// for _ in 1..=n {
+    /// let mut signatures: Vec<(usize, Signature)> = Vec::new();
+    /// for _ in 0..n {
     ///     let sk = SigningKey::gen(&mut rng);
     ///     let pk = PublicKey::from(&sk);
     ///     let pkpop = PublicKeyPoP::from(&sk);
-    ///     let sig = sk.sign(msg);
-    ///     assert!(sig.verify(&pk, msg).is_ok());
     ///     keyspop.push(pkpop);
-    ///     signatures.push((pk, sig));
+    ///     sk_pks.push((sk, pk));
     /// }
     ///
     /// let atms_registration = Registration::<Blake2b>::new(&keyspop)?;
+    ///
+    /// for i in 0..n {
+    ///     let (sk, pk) = &sk_pks[i];
+    ///     let sig = sk.sign(msg);
+    ///     assert!(sig.verify(pk, msg).is_ok());
+    ///     let indices = atms_registration.get_index(pk);
+    ///     for i in indices {
+    ///         signatures.push((i, sig));
+    ///     }
+    /// }
     /// let avk = atms_registration.to_avk();
     /// assert!(avk.check(&keyspop).is_ok());
     ///
@@ -421,7 +447,7 @@ where
     ///
     /// let mut aggr_sig = AggregateSig::new(&atms_registration, &subset, msg).expect("Signatures should be valid");
     ///
-    /// assert!(aggr_sig.verify(msg, &avk, threshold).is_ok());
+    /// aggr_sig.verify(msg, &avk, threshold).unwrap();
     /// # Ok(())
     /// # }
     /// ```
@@ -531,11 +557,12 @@ mod tests {
     use super::*;
     use crate::multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey};
     use blake2::Blake2b;
+
     use proptest::prelude::*;
     use rand::seq::SliceRandom;
     use rand_chacha::ChaCha20Rng;
-    use rand_core::SeedableRng;
 
+    use rand_core::SeedableRng;
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(1000))]
 
@@ -545,18 +572,95 @@ mod tests {
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut sk_pks = Vec::new();
             let mut pkpops = Vec::new();
             let mut sigs = Vec::new();
             for _ in 0..num_sigs {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
                 let pkpop = PublicKeyPoP::from(&sk);
-                let sig = sk.sign(&msg);
-                assert!(sig.verify(&pk, &msg).is_ok());
-                sigs.push((pk, sig));
                 pkpops.push(pkpop);
+                sk_pks.push((sk, pk));
             }
             let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+
+            for (sk, pk) in sk_pks {
+                let sig = sk.sign(&msg);
+                assert!(sig.verify(&pk, &msg).is_ok());
+                let indices = registration.get_index(&pk);
+                for j in indices {
+                    sigs.push((j, sig));
+                }
+            }
+            let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
+            assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
+        }
+
+        #[test]
+        fn test_get_index(num_pks in 1..16usize,
+                              num_eligible_signers in 1..20usize,
+                              seed in any::<[u8;32]>(),
+        ) {
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut sks = Vec::new();
+            let mut pks = Vec::new();
+            let mut pkpops = Vec::new();
+            for _ in 0..num_pks {
+                let sk = SigningKey::gen(&mut rng);
+                sks.push(sk);
+            }
+
+            for i in 0..num_eligible_signers {
+                let pk = PublicKey::from(&sks[i % num_pks]);
+                pks.push(pk);
+                let pkpop = PublicKeyPoP::from(&sks[i % num_pks]);
+                pkpops.push(pkpop);
+            }
+            pks.sort();
+
+            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+
+            for (index, pk) in pks.iter().enumerate() {
+                let indices = registration.get_index(pk);
+                if indices.is_empty() {
+                    panic!();
+                } else {
+                    assert!(indices.contains(&index));
+                }
+            }
+        }
+
+        #[test]
+        fn test_aggregate_sig_repeaded_keys(msg in prop::collection::vec(any::<u8>(), 1..128),
+                              num_sigs in 1..16usize,
+                              num_pks in 1..4usize,
+                              seed in any::<[u8;32]>(),
+        ) {
+
+            let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut sk_pks = Vec::new();
+            let mut pkpops = Vec::new();
+            let mut sigs = Vec::new();
+            for _ in 0..num_pks {
+                let sk = SigningKey::gen(&mut rng);
+                let pk = PublicKey::from(&sk);
+                sk_pks.push((sk, pk));
+            }
+
+            for i in 0..num_sigs {
+                pkpops.push(PublicKeyPoP::from(&sk_pks[i % num_pks].0));
+            }
+
+            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+
+            for (sk, pk) in sk_pks {
+                let sig = sk.sign(&msg);
+                assert!(sig.verify(&pk, &msg).is_ok());
+                let indices = registration.get_index(&pk);
+                for j in indices {
+                    sigs.push((j, sig));
+                }
+            }
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
             assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
         }
@@ -567,18 +671,26 @@ mod tests {
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut sk_pks = Vec::new();
             let mut pkpops = Vec::new();
             let mut sigs = Vec::new();
             for _ in 0..num_sigs {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
                 let pkpop = PublicKeyPoP::from(&sk);
-                let sig = sk.sign(&msg);
-                assert!(sig.verify(&pk, &msg).is_ok());
-                sigs.push((pk, sig));
                 pkpops.push(pkpop);
+                sk_pks.push((sk, pk));
             }
             let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+
+            for (sk, pk) in sk_pks {
+                let sig = sk.sign(&msg);
+                assert!(sig.verify(&pk, &msg).is_ok());
+                let indices = registration.get_index(&pk);
+                for j in indices {
+                    sigs.push((j, sig));
+                }
+            }
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
             let bytes = mu.to_bytes();
             let recovered = AggregateSig::<Blake2b>::from_bytes(&bytes).unwrap();
@@ -591,18 +703,27 @@ mod tests {
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
+            let mut sk_pks = Vec::new();
             let mut pkpops = Vec::new();
             let mut sigs = Vec::new();
             for _ in 0..num_sigs {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
                 let pkpop = PublicKeyPoP::from(&sk);
-                let sig = sk.sign(&msg);
-                assert!(sig.verify(&pk, &msg).is_ok());
-                sigs.push((pk, sig));
                 pkpops.push(pkpop);
+                sk_pks.push((sk, pk));
             }
             let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+
+            for (sk, pk) in sk_pks {
+                let sig = sk.sign(&msg);
+                assert!(sig.verify(&pk, &msg).is_ok());
+                let indices = registration.get_index(&pk);
+                for j in indices {
+                    sigs.push((j, sig));
+                }
+            }
+
             sigs.shuffle(&mut rng);
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
             assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
@@ -726,7 +847,7 @@ mod tests {
             let mut rng = ChaCha20Rng::from_seed(seed);
 
             let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
-            for _ in 1..=n {
+            for _ in 0..n {
                 let sk = SigningKey::gen(&mut rng);
                 let pkpop = PublicKeyPoP::from(&sk);
                 keyspop.push(pkpop);
@@ -770,43 +891,54 @@ mod tests {
         ) {
             let threshold: usize = n - ((n - 1) / 3);
             let mut rng = ChaCha20Rng::from_seed(seed);
-
-            let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
-            let mut signatures: Vec<(PublicKey, Signature)> = Vec::new();
-            for _ in 1..=n {
+            let mut sk_pks = Vec::new();
+            let mut pkpops = Vec::new();
+            let mut sigs = Vec::new();
+            for _ in 0..n {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
                 let pkpop = PublicKeyPoP::from(&sk);
-                let sig = sk.sign(&msg);
-                assert!(sig.verify(&pk, &msg).is_ok());
-                keyspop.push(pkpop);
-                signatures.push((pk, sig));
+                pkpops.push(pkpop);
+                sk_pks.push((sk, pk));
             }
 
-            let atms_registration = Registration::<Blake2b>::new(&keyspop).expect("Registration should pass");
-            let avk = atms_registration.to_avk();
-            assert!(avk.check(&keyspop).is_ok());
+            let registration = Registration::<Blake2b>::new(&pkpops).expect("Re\
+            gistration should pass with valid keys");
+
+            for (sk, pk) in sk_pks {
+                let sig = sk.sign(&msg);
+                assert!(sig.verify(&pk, &msg).is_ok());
+                let indices = registration.get_index(&pk);
+                for j in indices {
+                    sigs.push((j, sig));
+                }
+            }
+            let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
+            assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
 
             // Note that we accept repeated signatures.
             let subset = subset_is
                 .iter()
                 .map(|i| {
-                    signatures[i % n]
+                    sigs[i % n]
                 })
                 .collect::<Vec<_>>();
 
-            let mut aggr_sig = AggregateSig::new(&atms_registration, &subset, &msg).expect("Signatures should be valid");
+            let mut aggr_sig = AggregateSig::new(&registration, &subset, &msg).expect("Signatures should be valid");
 
             let mut false_susbset = subset.clone();
-            false_susbset[0] = signatures[false_mk_proof % n];
-            let false_aggr = AggregateSig::new(&atms_registration, &false_susbset, &msg).expect("Signatures should be valid");
+            false_susbset[0] = sigs[false_mk_proof % n];
+            let false_aggr = AggregateSig::new(&registration, &false_susbset, &msg).expect("Signatures should be valid");
             if aggr_sig.keys.len() == false_aggr.keys.len() {
                 aggr_sig.batch_proof = false_aggr.batch_proof.clone();
-            } else if aggr_sig.keys.len() > 1 && repeate_non_signer == 1 {
+            }
+
+            if aggr_sig.keys.len() == false_aggr.keys.len() && aggr_sig.keys.len() > 1 && repeate_non_signer == 1 {
                 aggr_sig.keys[0] = false_aggr.keys[1];
                 aggr_sig.batch_proof = false_aggr.batch_proof.clone();
             }
 
+            let avk = registration.to_avk();
             match aggr_sig.verify(&msg, &avk, threshold) {
                 Ok(()) => {
                     assert!(subset.len() >= threshold);
@@ -818,8 +950,7 @@ mod tests {
                     assert!(d >= avk.nr_parties - threshold);
                 }
                 Err(AtmsError::InvalidMerkleProof) => {
-                    assert!(false_mk_proof % n != subset_is[0] || repeate_non_signer == 1);
-                    assert_ne!(false_susbset.to_vec(), subset);
+                    assert!(false_susbset.to_vec() != subset || false_mk_proof % n != subset_is[0] || repeate_non_signer == 1);
                 }
                 Err(AtmsError::FoundDuplicates(pk)) => {
                     assert_eq!(repeate_non_signer, 1);

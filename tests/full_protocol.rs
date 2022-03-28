@@ -17,9 +17,11 @@ fn full_protocol() -> Result<(), AtmsError> {
     let msg_1 = [0u8; 16];
 
     let mut sks: Vec<SigningKey> = Vec::with_capacity(total_nr_players);
+    let mut pks: Vec<PublicKey> = Vec::with_capacity(total_nr_players);
     let mut pks_pop: Vec<PublicKeyPoP> = Vec::with_capacity(total_nr_players);
     for _ in 0..total_nr_players {
         let sk = SigningKey::gen(&mut rng);
+        pks.push(PublicKey::from(&sk));
         pks_pop.push(PublicKeyPoP::from(&sk));
         sks.push(sk);
     }
@@ -42,10 +44,14 @@ fn full_protocol() -> Result<(), AtmsError> {
     // Once the registration is performed, we can generate the avk
     let avk_1 = atms_registration_1.to_avk();
 
-    // Now the parties can sign messages. No need of interaction.
+    // Now the parties can sign messages. No need of interaction. Recall that one party may be
+    // in two distinct positions of the merkle tree.
     let mut signatures = Vec::with_capacity(nr_parties_1);
     for &i in qualified_signers.iter() {
-        signatures.push((PublicKey::from(&sks[i]), sks[i].sign(&msg_1)));
+        let indices = atms_registration_1.get_index(&pks[i]);
+        for index in indices {
+            signatures.push((index, sks[i].sign(&msg_1)));
+        }
     }
     let aggr_sig = AggregateSig::new(&atms_registration_1, &signatures[..], &msg_1)?;
 
@@ -72,7 +78,10 @@ fn full_protocol() -> Result<(), AtmsError> {
 
     // Now, assume that only 4 parties are available for signing, and therefore, verification will fail.
     for &i in qualified_signers.iter().take(4) {
-        signatures.push((PublicKey::from(&sks[i]), sks[i].sign(&msg_2)));
+        let indices = atms_registration_2.get_index(&pks[i]);
+        for index in indices {
+            signatures.push((index, sks[i].sign(&msg_2)));
+        }
     }
     let aggr_sig = AggregateSig::new(&atms_registration_2, &signatures[..], &msg_2)?;
 
@@ -83,11 +92,5 @@ fn full_protocol() -> Result<(), AtmsError> {
     let aggr_sig_old_msg = AggregateSig::new(&atms_registration_2, &signatures[..], &msg_1);
     assert_eq!(aggr_sig_old_msg.unwrap_err(), AtmsError::InvalidSignature);
 
-    // If we aggregate signatures with respect to the old registration, then we will have unknown signers.
-    let aggr_unknown_signers = AggregateSig::new(&atms_registration_1, &signatures[..], &msg_2);
-    assert_eq!(
-        aggr_unknown_signers.unwrap_err(),
-        AtmsError::NonRegisteredParticipant
-    );
     Ok(())
 }

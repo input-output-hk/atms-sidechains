@@ -214,6 +214,8 @@ pub extern "C" fn atms_registration_to_avk(
 }
 
 #[no_mangle]
+/// It aggregate the signatures submitted. For every signature submitted, this function
+/// automatically inclues one copy of the signature per position in the merkle tree.
 pub extern "C" fn atms_aggregate_sigs(
     msg_ptr: *const c_char,
     sigs_ptr: *const SignaturePtr,
@@ -231,11 +233,18 @@ pub extern "C" fn atms_aggregate_sigs(
             aggr_sig.as_mut(),
         ) {
             let msg = CStr::from_ptr(ref_msg);
-            let sigs = slice::from_raw_parts(ref_sigs, nr_signatures)
+            let mut sigs = Vec::new();
+
+            for (p, k) in slice::from_raw_parts(ref_sigs, nr_signatures)
                 .iter()
                 .zip(slice::from_raw_parts(ref_pks, nr_signatures).iter())
-                .map(|(p, k)| ((**k), **p))
-                .collect::<Vec<_>>();
+            {
+                let indices = ref_reg.get_index(&**k);
+                for index in indices {
+                    sigs.push((index, **p));
+                }
+            }
+
             match AggregateSig::new(ref_reg, &sigs, msg.to_bytes()) {
                 Ok(sig) => *ref_aggr_sig = Box::into_raw(Box::new(sig)),
                 Err(AtmsError::NonRegisteredParticipant) => return -1,
