@@ -131,7 +131,7 @@ TEST(atms, testingErrors) {
     AggregateSigPtr aggregated_sig_2;
     err = atms_aggregate_sigs(msg, fake_sigs, fake_keys, registration_fake, 2, &aggregated_sig_2);
     ASSERT_EQ(err, 0);
-    err = atms_verify_aggr(msg, aggregated_sig_2, avk_pk, 2);
+    err = atms_verify_aggr(msg, aggregated_sig_2, avk_pk, 3);
     ASSERT_EQ(err, -3);
 
     // If instead there are no `non-signers` (all signers submit a signature), but the signature is invalid, the error
@@ -152,6 +152,6 @@ TEST(atms, testingErrors) {
     AggregateSigPtr aggregated_sig_3;
     err = atms_aggregate_sigs(msg, &fake_sig, &fake_key, single_registration, 1, &aggregated_sig_3);
     ASSERT_EQ(err, 0);
-    err = atms_verify_aggr(msg, aggregated_sig_3, avk_pk, 1);
+    err = atms_verify_aggr(msg, aggregated_sig_3, avk_pk, 3);
     ASSERT_EQ(err, -4);
 }
