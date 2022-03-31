@@ -233,7 +233,7 @@ pub extern "C" fn atms_aggregate_sigs(
             aggr_sig.as_mut(),
         ) {
             let msg = CStr::from_ptr(ref_msg);
-            let mut sigs = Vec::new();
+            let mut sigs = Vec::with_capacity(nr_signatures);
 
             for (p, k) in slice::from_raw_parts(ref_sigs, nr_signatures)
                 .iter()

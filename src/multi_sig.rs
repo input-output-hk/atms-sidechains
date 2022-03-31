@@ -419,7 +419,7 @@ mod tests {
             seed in any::<[u8;32]>())
         {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut pks = Vec::new();
+            let mut pks = Vec::with_capacity(nr_parties);
             let mut underlying_points = Vec::with_capacity(nr_parties);
             for _ in 0..nr_parties {
                 let sk = SigningKey::gen(&mut rng);
@@ -482,7 +482,7 @@ mod tests {
             seed in any::<[u8;32]>())
         {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sigs = Vec::new();
+            let mut sigs = Vec::with_capacity(nr_parties);
             let mut underlying_points = Vec::with_capacity(nr_parties);
             for _ in 0..nr_parties {
                 let sk = SigningKey::gen(&mut rng);

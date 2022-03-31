@@ -27,6 +27,7 @@ use crate::{
 
 use blake2::Digest;
 use digest::FixedOutput;
+use std::convert::TryFrom;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -89,7 +90,7 @@ where
     /// let threshold: usize = n - ((n - 1) / 3);
     /// let mut rng = OsRng;
     ///
-    /// let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
+    /// let mut keyspop: Vec<PublicKeyPoP> = Vec::with_capacity(n);
     /// for _ in 0..n {
     ///     let sk = SigningKey::gen(&mut rng);
     ///     let pkpop = PublicKeyPoP::from(&sk);
@@ -118,9 +119,13 @@ where
     /// * Nr of parties
     /// * Merkle tree commitment
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(48 + 4 + H::output_size());
         result.extend_from_slice(&self.aggregate_key.to_bytes());
-        result.extend_from_slice(&self.nr_parties.to_be_bytes());
+        result.extend_from_slice(
+            &u32::try_from(self.nr_parties)
+                .expect("Length must fit in u32")
+                .to_be_bytes(),
+        );
         result.extend_from_slice(&self.mt_commitment.to_bytes());
         result
     }
@@ -131,14 +136,14 @@ where
     ///
     /// # Error
     /// Function fails if the byte representation corresponds to an invalid Avk
-    // todo: again, handle these conversions to usize..
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
-        let mut nr_bytes = [0u8; 8];
-        nr_bytes.copy_from_slice(&bytes[48..56]);
+        let mut nr_bytes = [0u8; 4];
+        nr_bytes.copy_from_slice(&bytes[48..52]);
 
         let aggregate_key = PublicKey::from_bytes(bytes)?;
-        let nr_parties = usize::from_be_bytes(nr_bytes);
-        let mt_commitment = MerkleTreeCommitment::from_bytes(&bytes[56..])?;
+        let nr_parties = usize::try_from(u32::from_be_bytes(nr_bytes))
+            .expect("Library should be built in 32 bit targets or higher");
+        let mt_commitment = MerkleTreeCommitment::from_bytes(&bytes[52..])?;
         Ok(Self {
             aggregate_key,
             mt_commitment,
@@ -235,7 +240,7 @@ where
     ///
     /// ```
     pub fn get_index(&self, pk: &PublicKey) -> Vec<usize> {
-        let mut indices = Vec::new();
+        let mut indices = Vec::with_capacity(self.leaf_map.len());
         for (&idx, &reg_pk) in self.leaf_map.iter() {
             if reg_pk == *pk {
                 indices.push(idx);
@@ -259,12 +264,19 @@ where
     /// can only be generated with valid keys.
     #[allow(dead_code)]
     fn to_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(
+            48 + 4 + self.leaf_map.len() * (48 + 4) + 4 + self.tree.nodes.len() * H::output_size(),
+        );
         result.extend_from_slice(&self.aggregate_key.to_bytes());
-        result.extend_from_slice(&self.leaf_map.len().to_be_bytes());
-        for (index, pk) in &self.leaf_map {
+        let len = u32::try_from(self.leaf_map.len()).expect("Length must fit in u32");
+        result.extend_from_slice(&len.to_be_bytes());
+        for (&index, pk) in &self.leaf_map {
             result.extend_from_slice(&pk.to_bytes());
-            result.extend_from_slice(&index.to_be_bytes());
+            result.extend_from_slice(
+                &u32::try_from(index)
+                    .expect("Index must fit in u32")
+                    .to_be_bytes(),
+            );
         }
         result.extend_from_slice(&self.tree.to_bytes());
 
@@ -280,19 +292,21 @@ where
     #[allow(dead_code)]
     fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
         let aggregate_key = PublicKey::from_bytes(bytes)?;
-        let mut len_bytes = [0u8; 8];
-        len_bytes.copy_from_slice(&bytes[48..56]);
-        let nr_parties = u64::from_be_bytes(len_bytes) as usize;
-        let hm_element_size = 48 + 8; // pk size + u64 size
-        let hm_offset = 56;
+        let mut len_bytes = [0u8; 4];
+        len_bytes.copy_from_slice(&bytes[48..52]);
+        let nr_parties = usize::try_from(u32::from_be_bytes(len_bytes))
+            .expect("Library should be build in 32 bit targets or higher");
+        let hm_element_size = 48 + 4; // pk size + u32 size
+        let hm_offset = 52;
         let mut leaf_map = HashMap::new();
         for i in 0..nr_parties {
-            let mut idx_bytes = [0u8; 8];
+            let mut idx_bytes = [0u8; 4];
             idx_bytes.copy_from_slice(
-                &bytes[hm_offset + hm_element_size * i + 48..hm_offset + hm_element_size * i + 56],
+                &bytes[hm_offset + hm_element_size * i + 48..hm_offset + hm_element_size * i + 52],
             );
             leaf_map.insert(
-                usize::from_be_bytes(idx_bytes),
+                usize::try_from(u32::from_be_bytes(idx_bytes))
+                    .expect("Library should be build in 32 bit targets or higher"),
                 PublicKey::from_bytes(&bytes[hm_offset + hm_element_size * i..])?,
             );
         }
@@ -413,9 +427,9 @@ where
     /// let msg = b"Did you know that Charles Babbage broke the Vigenere cipher?";
     /// let mut rng = OsRng;
     ///
-    /// let mut sk_pks: Vec<(SigningKey, PublicKey)> = Vec::new();
-    /// let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
-    /// let mut signatures: Vec<(usize, Signature)> = Vec::new();
+    /// let mut sk_pks: Vec<(SigningKey, PublicKey)> = Vec::with_capacity(n);
+    /// let mut keyspop: Vec<PublicKeyPoP> = Vec::with_capacity(n);
+    /// let mut signatures: Vec<(usize, Signature)> = Vec::with_capacity(n);
     /// for _ in 0..n {
     ///     let sk = SigningKey::gen(&mut rng);
     ///     let pk = PublicKey::from(&sk);
@@ -452,6 +466,8 @@ where
     /// # }
     /// ```
     pub fn verify(&self, msg: &[u8], avk: &Avk<H>, threshold: usize) -> Result<(), AtmsError> {
+        // The threshold must be higher than half the size of the parties.
+        assert!(threshold > (avk.nr_parties / 2));
         // Check duplicates by building this set of
         // non-signing keys
         let mut unique_non_signers = HashSet::new();
@@ -476,8 +492,6 @@ where
                 }
             }
 
-            // The threshold is k, for n = 3*k + 1
-            assert!(avk.nr_parties - threshold as usize >= (avk.nr_parties - 1) / 3);
             if non_signing_size > avk.nr_parties - threshold {
                 return Err(AtmsError::TooMuchOutstandingSigners(non_signing_size));
             }
@@ -503,9 +517,8 @@ where
     /// * $t$ public keys
     /// * Batch membership proof
     pub fn to_bytes(&self) -> Vec<u8> {
-        // todo: lets do with_capacity here
         let mut aggregate_sig_bytes = Vec::new();
-        let nr_non_signers = self.keys.len();
+        let nr_non_signers = u32::try_from(self.keys.len()).expect("Length must fit in u32");
         aggregate_sig_bytes.extend_from_slice(&nr_non_signers.to_be_bytes());
 
         aggregate_sig_bytes.extend_from_slice(&self.aggregate.to_bytes());
@@ -522,23 +535,23 @@ where
 
     /// Deserialise a byte string to an `AggregateSig`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
-        let mut u64_bytes = [0u8; 8];
-        u64_bytes.copy_from_slice(&bytes[..8]);
-        // todo: properly handle this
-        let non_signers = u64::from_be_bytes(u64_bytes) as usize;
+        let mut u64_bytes = [0u8; 4];
+        u64_bytes.copy_from_slice(&bytes[..4]);
+        let non_signers = usize::try_from(u32::from_be_bytes(u64_bytes))
+            .expect("Library should be built in 32 bit targets or higher");
 
-        let aggregate = Signature::from_bytes(&bytes[8..])?;
+        let aggregate = Signature::from_bytes(&bytes[4..])?;
         let mut keys: Vec<PublicKey> = Vec::with_capacity(non_signers);
 
         for i in 0..non_signers {
-            let pk_offset = 104 + i * 48;
+            let pk_offset = 100 + i * 48;
             let pk = PublicKey::from_bytes(&bytes[pk_offset..])?;
 
             keys.push(pk);
         }
 
         let batch_proof = if non_signers > 0 {
-            let proof_offset = 104 + non_signers * 48;
+            let proof_offset = 100 + non_signers * 48;
             Some(BatchPath::from_bytes(&bytes[proof_offset..])?)
         } else {
             None
@@ -572,9 +585,9 @@ mod tests {
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sk_pks = Vec::new();
-            let mut pkpops = Vec::new();
-            let mut sigs = Vec::new();
+            let mut sk_pks = Vec::with_capacity(num_sigs);
+            let mut pkpops = Vec::with_capacity(num_sigs);
+            let mut sigs = Vec::with_capacity(num_sigs);
             for _ in 0..num_sigs {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
@@ -593,7 +606,7 @@ mod tests {
                 }
             }
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
-            assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
+            assert!(mu.verify(&msg, &registration.to_avk(), num_sigs).is_ok());
         }
 
         #[test]
@@ -602,9 +615,9 @@ mod tests {
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sks = Vec::new();
-            let mut pks = Vec::new();
-            let mut pkpops = Vec::new();
+            let mut sks = Vec::with_capacity(num_pks);
+            let mut pks = Vec::with_capacity(num_eligible_signers);
+            let mut pkpops = Vec::with_capacity(num_eligible_signers);
             for _ in 0..num_pks {
                 let sk = SigningKey::gen(&mut rng);
                 sks.push(sk);
@@ -633,14 +646,14 @@ mod tests {
         #[test]
         fn test_aggregate_sig_repeaded_keys(msg in prop::collection::vec(any::<u8>(), 1..128),
                               num_sigs in 1..16usize,
-                              num_pks in 1..4usize,
+                              num_pks in 1..8usize,
                               seed in any::<[u8;32]>(),
         ) {
 
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sk_pks = Vec::new();
-            let mut pkpops = Vec::new();
-            let mut sigs = Vec::new();
+            let mut sk_pks = Vec::with_capacity(num_pks);
+            let mut pkpops = Vec::with_capacity(num_sigs);
+            let mut sigs = Vec::with_capacity(num_sigs);
             for _ in 0..num_pks {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
@@ -662,19 +675,20 @@ mod tests {
                 }
             }
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
-            assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
+            assert!(mu.verify(&msg, &registration.to_avk(), num_sigs).is_ok());
         }
 
         #[test]
         fn test_aggregate_sig_serde(msg in prop::collection::vec(any::<u8>(), 1..128),
                               num_sigs in 1..16usize,
+                              num_pks in 1..16usize,
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sk_pks = Vec::new();
-            let mut pkpops = Vec::new();
-            let mut sigs = Vec::new();
-            for _ in 0..num_sigs {
+            let mut sk_pks = Vec::with_capacity(num_pks);
+            let mut pkpops = Vec::with_capacity(num_pks);
+            let mut sigs = Vec::with_capacity(num_sigs);
+            for _ in 0..num_pks {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
                 let pkpop = PublicKeyPoP::from(&sk);
@@ -683,10 +697,11 @@ mod tests {
             }
             let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
 
-            for (sk, pk) in sk_pks {
+            for i in 0..num_sigs {
+                let (sk, pk) = &sk_pks[i % num_pks];
                 let sig = sk.sign(&msg);
-                assert!(sig.verify(&pk, &msg).is_ok());
-                let indices = registration.get_index(&pk);
+                assert!(sig.verify(pk, &msg).is_ok());
+                let indices = registration.get_index(pk);
                 for j in indices {
                     sigs.push((j, sig));
                 }
@@ -694,7 +709,18 @@ mod tests {
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
             let bytes = mu.to_bytes();
             let recovered = AggregateSig::<Blake2b>::from_bytes(&bytes).unwrap();
-            assert!(recovered.verify(&msg, &registration.to_avk(), 0).is_ok());
+            match recovered.verify(&msg, &registration.to_avk(), num_pks - (num_pks - 1) / 3) {
+                Ok(_) => {
+                    assert!(num_sigs >= num_pks - (num_pks - 1) / 3);
+                },
+                Err(AtmsError::TooMuchOutstandingSigners(n)) => {
+                    assert_eq!(n, num_pks - num_sigs);
+                    assert!(n >=  (num_pks - 1) / 3);
+                }
+                Err(err) => {
+                    unreachable!("{:?}", err);
+                }
+            }
         }
 
         #[test]
@@ -703,9 +729,9 @@ mod tests {
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sk_pks = Vec::new();
-            let mut pkpops = Vec::new();
-            let mut sigs = Vec::new();
+            let mut sk_pks = Vec::with_capacity(num_sigs);
+            let mut pkpops = Vec::with_capacity(num_sigs);
+            let mut sigs = Vec::with_capacity(num_sigs);
             for _ in 0..num_sigs {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
@@ -726,7 +752,7 @@ mod tests {
 
             sigs.shuffle(&mut rng);
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
-            assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
+            assert!(mu.verify(&msg, &registration.to_avk(), num_sigs).is_ok());
         }
 
         #[test]
@@ -734,7 +760,7 @@ mod tests {
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut pkpops = Vec::new();
+            let mut pkpops = Vec::with_capacity(num_sigs);
             for _ in 0..num_sigs {
                 let sk = SigningKey::gen(&mut rng);
                 let pkpop = PublicKeyPoP::from(&sk);
@@ -749,13 +775,13 @@ mod tests {
 
         #[test]
         fn test_deaggregate_pks(msg in prop::collection::vec(any::<u8>(), 1..128),
-                              num_pks in 1..16,
-                              num_sigs in 1..5,
+                              num_pks in 1..16usize,
+                              num_sigs in 1..5usize,
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sks = Vec::new();
-            let mut pks = Vec::new();
+            let mut sks = Vec::with_capacity(num_pks);
+            let mut pks = Vec::with_capacity(num_pks);
             for _ in 0..num_pks {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
@@ -764,7 +790,7 @@ mod tests {
             }
 
             let mut aggr_pk = pks.iter().sum();
-            let mut sigs = Vec::new();
+            let mut sigs = Vec::with_capacity(num_sigs);
 
             for sk in sks.iter().take(num_sigs as usize) {
                 sigs.push(sk.sign(&msg));
@@ -779,12 +805,12 @@ mod tests {
         }
 
         #[test]
-        fn test_correct_avk(num_pks in 1..16,
+        fn test_correct_avk(num_pks in 1..16usize,
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sks = Vec::new();
-            let mut pks = Vec::new();
+            let mut sks = Vec::with_capacity(num_pks);
+            let mut pks = Vec::with_capacity(num_pks);
             for _ in 0..num_pks {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKeyPoP::from(&sk);
@@ -797,12 +823,12 @@ mod tests {
         }
 
         #[test]
-        fn test_avk_serde(num_pks in 1..16,
+        fn test_avk_serde(num_pks in 1..16usize,
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sks = Vec::new();
-            let mut pks = Vec::new();
+            let mut sks = Vec::with_capacity(num_pks);
+            let mut pks = Vec::with_capacity(num_pks);
             for _ in 0..num_pks {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKeyPoP::from(&sk);
@@ -817,12 +843,12 @@ mod tests {
         }
 
         #[test]
-        fn shuffle_keys_same_avk(num_pks in 1..16,
+        fn shuffle_keys_same_avk(num_pks in 1..16usize,
                               seed in any::<[u8;32]>(),
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sks = Vec::new();
-            let mut pks = Vec::new();
+            let mut sks = Vec::with_capacity(num_pks);
+            let mut pks = Vec::with_capacity(num_pks);
             for _ in 0..num_pks {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKeyPoP::from(&sk);
@@ -846,7 +872,7 @@ mod tests {
         ) {
             let mut rng = ChaCha20Rng::from_seed(seed);
 
-            let mut keyspop: Vec<PublicKeyPoP> = Vec::new();
+            let mut keyspop: Vec<PublicKeyPoP> = Vec::with_capacity(n);
             for _ in 0..n {
                 let sk = SigningKey::gen(&mut rng);
                 let pkpop = PublicKeyPoP::from(&sk);
@@ -891,9 +917,9 @@ mod tests {
         ) {
             let threshold: usize = n - ((n - 1) / 3);
             let mut rng = ChaCha20Rng::from_seed(seed);
-            let mut sk_pks = Vec::new();
-            let mut pkpops = Vec::new();
-            let mut sigs = Vec::new();
+            let mut sk_pks = Vec::with_capacity(n);
+            let mut pkpops = Vec::with_capacity(n);
+            let mut sigs = Vec::with_capacity(n);
             for _ in 0..n {
                 let sk = SigningKey::gen(&mut rng);
                 let pk = PublicKey::from(&sk);
@@ -914,7 +940,7 @@ mod tests {
                 }
             }
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
-            assert!(mu.verify(&msg, &registration.to_avk(), 0).is_ok());
+            assert!(mu.verify(&msg, &registration.to_avk(), n).is_ok());
 
             // Note that we accept repeated signatures.
             let subset = subset_is
