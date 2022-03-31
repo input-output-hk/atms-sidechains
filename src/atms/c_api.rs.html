@@ -532,7 +532,7 @@
             <span class="ident">aggr_sig</span>.<span class="ident">as_mut</span>(),
         ) {
             <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">CStr::from_ptr</span>(<span class="ident">ref_msg</span>);
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sigs</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sigs</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="ident">nr_signatures</span>);
 
             <span class="kw">for</span> (<span class="ident">p</span>, <span class="ident">k</span>) <span class="kw">in</span> <span class="ident">slice::from_raw_parts</span>(<span class="ident">ref_sigs</span>, <span class="ident">nr_signatures</span>)
                 .<span class="ident">iter</span>()
