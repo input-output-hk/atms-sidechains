@@ -20,9 +20,8 @@
 
 use crate::{
     error::{blst_err_to_atms, AtmsError},
-    merkle_tree::{BatchPath, MerkleTreeCommitment},
+    merkle_tree::{BatchPath, MerkleTreeCommitment, MerkleTree},
     multi_sig::{PublicKey, PublicKeyPoP, Signature},
-    MerkleTree,
 };
 
 use blake2::Digest;
@@ -250,7 +249,7 @@ where
     }
 
     /// Return an `Avk` key from the key registration. This consists of the merkle root
-    /// of the vector commitment.
+    /// of the vector commitment, the aggregate key and the number of parties.
     pub fn to_avk(&self) -> Avk<H> {
         Avk {
             aggregate_key: self.aggregate_key,
@@ -410,8 +409,9 @@ where
     /// # Error
     /// Verification failds in the following cases:
     /// * `AtmsError::FoundDuplicates` if there are duplicates in the non-signers,
-    /// * `AtmsError::InvalidMerkleProof` if the proof of membership is invalid, and
-    /// * `AtmsError::TooMuchOutstandingSigners` if there are not enough signers.
+    /// * `AtmsError::InvalidMerkleProof` if the proof of membership is invalid,
+    /// * `AtmsError::TooMuchOutstandingSigners` if there are not enough signers, and
+    /// * `AtmsError::InvalidSignature` if the signature is invalid.
     ///
     /// # Example
     /// ```

@@ -11,10 +11,9 @@
 pub mod aggregation;
 mod c_api;
 mod error;
-mod merkle_tree;
+pub mod merkle_tree;
 pub mod multi_sig;
 
 pub use crate::{
     error::AtmsError,
-    merkle_tree::{MerkleTree, MerkleTreeCommitment, Path},
 };

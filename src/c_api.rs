@@ -1,5 +1,5 @@
 //! C api. All functions return an i64, with 0 upon success, and -99 if the returned pointer
-//! is null. Other error codes are function dependent.
+//! is null (we omit this error from the documentation). Other error codes are function dependent.
 use crate::{
     aggregation::{AggregateSig, Registration},
     error::AtmsError,
@@ -24,6 +24,7 @@ macro_rules! free_pointer {
     ($type_name:ident, $pointer_type:ty) => {
         paste::item! {
             #[no_mangle]
+            /// Free pointer
             pub extern "C" fn [< free_ $type_name>](p: $pointer_type) -> i64 {
                 unsafe {
                     if let Some(p) = p.as_mut() {
@@ -45,15 +46,13 @@ free_pointer!(registration, RegistrationPtr);
 free_pointer!(aggr_sig, AggregateSigPtr);
 free_pointer!(avk, AvkPtr);
 
-// A macro would be nice for the below, but macros do not
-// seem to work properly with cbindgen:
-
 use std::{intrinsics::copy_nonoverlapping, slice};
 /// Serialisation functions
 macro_rules! atms_serialisation {
     ($type_name:ident, $pointer_type:ty, $struct_type:ty)=> {
         paste::item! {
             #[no_mangle]
+            /// Serialize
             pub extern "C" fn [< serialize_ $type_name>]
             (p: $pointer_type, out_size: *mut usize, out_bytes: *mut *mut u8) -> i64
             {
@@ -73,15 +72,22 @@ macro_rules! atms_serialisation {
                 }
             }
 
-            /// Deserialize a byte string.
+            /// Deserialize a byte string. Returns
+            /// * 0 upon success
+            /// * -1 if deserialization failed
             #[no_mangle]
             pub extern "C" fn [< deserialize_ $type_name>]
             (size: usize, bytes: *const u8, result: *mut $pointer_type) -> i64 {
                 unsafe {
                     if let (Some(res), Some(bytes)) = (result.as_mut(), bytes.as_ref()) {
-                        let val = $struct_type::from_bytes(slice::from_raw_parts(bytes, size)).unwrap();
-                        *res = Box::into_raw(Box::new(val));
-                        return 0;
+                        let val = $struct_type::from_bytes(slice::from_raw_parts(bytes, size));
+                        match val {
+                            Ok(r) => {
+                                *res = Box::into_raw(Box::new(r));
+                                return 0;
+                            },
+                            Err(_) => return -1
+                        }
                     }
                     NULLPOINTERERR
                 }
@@ -100,6 +106,8 @@ atms_serialisation!(avk, AvkPtr, Avk);
 use crate::aggregation::Avk;
 
 #[no_mangle]
+/// Generate a new signing key by choosing an integer uniformly at random from
+/// Zq, and generate a `ProofOfPossession` from this value, by returning `sk * H_2(b"PoP")`.
 pub extern "C" fn atms_generate_keypair(
     sk_ptr: *mut SigningKeyPtr,
     pk_ptr: *mut PublicKeyPoPPtr,
@@ -118,6 +126,10 @@ pub extern "C" fn atms_generate_keypair(
 }
 
 #[no_mangle]
+/// Verify the proof of possession with respect to the associated public key, by checking that
+/// `e(pk, H_2(b"PoP")) = e(G1, pkpop)`.Returns:
+/// * 0 if proof is valid
+/// * -1 if proof is invalid
 pub extern "C" fn atms_pkpop_to_pk(pkpop_ptr: PublicKeyPoPPtr, pk_ptr: *mut PublicKeyPtr) -> i64 {
     unsafe {
         if let (Some(ref_pkpop), Some(ref_pk)) = (pkpop_ptr.as_ref(), pk_ptr.as_mut()) {
@@ -134,6 +146,8 @@ pub extern "C" fn atms_pkpop_to_pk(pkpop_ptr: PublicKeyPoPPtr, pk_ptr: *mut Publ
 }
 
 #[no_mangle]
+/// Produce a partial signature for message `msg`. The signature, `signature` is computed by hashing
+/// `msg` into `G2` and multiplying by the secret key,  `signature = sk * H_2(msg)`.
 pub extern "C" fn atms_sign(
     msg_ptr: *const c_char,
     key_ptr: SigningKeyPtr,
@@ -152,6 +166,11 @@ pub extern "C" fn atms_sign(
 }
 
 #[no_mangle]
+/// Given a public key, `key`, a signature, `sig`, and a message, `msg`, a verifier
+/// accepts the signature if the following check succeeds: `e(pk, H_2(msg)) = e(G_1, signature)`.
+/// Returns:
+/// * 0 if signature is valid
+/// * -1 if signature is invalid
 pub extern "C" fn atms_verify(
     msg_ptr: *const c_char,
     key_ptr: PublicKeyPtr,
@@ -172,8 +191,10 @@ pub extern "C" fn atms_verify(
 }
 
 #[no_mangle]
-/// Performs the key registration. Returns 0 upon success, or -1 if one of the keys included in
-/// the registration have an invalid proof of possession.
+/// Performs the key registration. Note there exists the possibility of registering a single key in more
+/// than one position. Returns
+/// * 0 upon success
+/// * -1 if one of the keys included in the registration have an invalid proof of possession.
 pub extern "C" fn avk_key_registration(
     keys: *const PublicKeyPoPPtr,
     nr_signers: usize,
@@ -198,6 +219,8 @@ pub extern "C" fn avk_key_registration(
 }
 
 #[no_mangle]
+/// Return an `Avk` key from the key registration. This consists of the merkle root
+/// of the vector commitment, the aggregate key and the number of parties.
 pub extern "C" fn atms_registration_to_avk(
     avk_ptr: *mut AvkPtr,
     registration_ptr: RegistrationPtr,
@@ -214,8 +237,17 @@ pub extern "C" fn atms_registration_to_avk(
 }
 
 #[no_mangle]
-/// It aggregate the signatures submitted. For every signature submitted, this function
-/// automatically inclues one copy of the signature per position in the merkle tree.
+/// Aggregate a list of signatures.
+/// The signature aggregation can be performed by any third party. Given `nr_signatures` pairs of
+/// signatures, `sigs`,  with their corresponding public key `pks`
+/// the aggregator produces the aggregate signature. It begins by checking all signatures
+/// are valid, and which public keys
+/// are missing from the tuple of submitted signatures. It computes the proof
+/// of set membership within the set of eligible signers for the missing signers. Then it proceeds
+/// with the computation of the aggregate signature (addition of all submitted signatures). Returns:
+/// * 0 if all signatures are valid
+/// * -1 if one of the signatures is invalid
+/// * -2 if one of the submitted signatures comes from a non-registered participant
 pub extern "C" fn atms_aggregate_sigs(
     msg_ptr: *const c_char,
     sigs_ptr: *const SignaturePtr,
@@ -261,13 +293,14 @@ pub extern "C" fn atms_aggregate_sigs(
 }
 
 #[no_mangle]
-/// Verifies a signature `sig_ptr` under aggregated key `avk_ptr`. Returns:
-/// * 0 upon success
-/// * -1 if the threshold is not reached
-/// * -2 if there were duplicates keys in `self`
-/// * -3 if there is an invalid proof of Merkle Tree membership
-/// * -4 if a key in `self` is not found in `avk_ptr`
-/// * -5 if the signature is invalid
+/// Verifies a signature `sig` under aggregated key `avk`. Returns:
+/// * 0 if the signature is valid,
+/// * -1 if there are not enough signers,
+/// * -2 if there are duplicates in the non-signers,
+/// * -3 if the proof of membership is invalid,
+/// * -4 if the signature is invalid,
+/// * -5 if elements submitted are unexpected (such as the infinity point or the identity), and
+/// * -6 if the bytes represent invalid group elements.
 pub extern "C" fn atms_verify_aggr(
     msg_ptr: *const c_char,
     sig_ptr: AggregateSigPtr,
