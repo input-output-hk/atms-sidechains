@@ -1,6 +1,9 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src&#x2F;c_api.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>c_api.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
-    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a class="sidebar-logo" href="../../atms/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.png" alt="logo"></div>
-        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../atms/index.html"><img class="rust-logo" src="../../rust-logo.png" alt="logo"></a><nav class="sub"><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/c_api.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>c_api.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../atms/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../atms/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../atms/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -297,8 +300,41 @@
 <span id="295">295</span>
 <span id="296">296</span>
 <span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
 </pre><pre class="rust"><code><span class="doccomment">//! C api. All functions return an i64, with 0 upon success, and -99 if the returned pointer</span>
-<span class="doccomment">//! is null. Other error codes are function dependent.</span>
+<span class="doccomment">//! is null (we omit this error from the documentation). Other error codes are function dependent.</span>
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">aggregation</span>::{<span class="ident">AggregateSig</span>, <span class="ident">Registration</span>},
     <span class="ident">error::AtmsError</span>,
@@ -323,6 +359,7 @@
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">pointer_type</span>:<span class="ident">ty</span>) =&gt; {
         <span class="macro">paste::item!</span> {
             <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
+            <span class="doccomment">/// Free pointer</span>
             <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> [<span class="op">&lt;</span> <span class="ident">free_</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span><span class="op">&gt;</span>](<span class="ident">p</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">pointer_type</span>) -&gt; <span class="ident">i64</span> {
                 <span class="kw">unsafe</span> {
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">p</span>) <span class="op">=</span> <span class="ident">p</span>.<span class="ident">as_mut</span>() {
@@ -344,15 +381,13 @@
 <span class="macro">free_pointer!</span>(<span class="ident">aggr_sig</span>, <span class="ident">AggregateSigPtr</span>);
 <span class="macro">free_pointer!</span>(<span class="ident">avk</span>, <span class="ident">AvkPtr</span>);
 
-<span class="comment">// A macro would be nice for the below, but macros do not</span>
-<span class="comment">// seem to work properly with cbindgen:</span>
-
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">intrinsics::copy_nonoverlapping</span>, <span class="ident">slice</span>};
 <span class="doccomment">/// Serialisation functions</span>
 <span class="macro">macro_rules!</span> <span class="ident">atms_serialisation</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">pointer_type</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">struct_type</span>:<span class="ident">ty</span>)=&gt; {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">pointer_type</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">struct_type</span>:<span class="ident">ty</span>) =&gt; {
         <span class="macro">paste::item!</span> {
             <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
+            <span class="doccomment">/// Serialize</span>
             <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> [<span class="op">&lt;</span> <span class="ident">serialize_</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span><span class="op">&gt;</span>]
             (<span class="ident">p</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">pointer_type</span>, <span class="ident">out_size</span>: <span class="kw-2">*mut</span> <span class="ident">usize</span>, <span class="ident">out_bytes</span>: <span class="kw-2">*mut</span> <span class="kw-2">*mut</span> <span class="ident">u8</span>) -&gt; <span class="ident">i64</span>
             {
@@ -372,21 +407,28 @@
                 }
             }
 
-            <span class="doccomment">/// Deserialize a byte string.</span>
+            <span class="doccomment">/// Deserialize a byte string. Returns</span>
+            <span class="doccomment">/// * 0 upon success</span>
+            <span class="doccomment">/// * -1 if deserialization failed</span>
             <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
             <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> [<span class="op">&lt;</span> <span class="ident">deserialize_</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span><span class="op">&gt;</span>]
             (<span class="ident">size</span>: <span class="ident">usize</span>, <span class="ident">bytes</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>, <span class="ident">result</span>: <span class="kw-2">*mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">pointer_type</span>) -&gt; <span class="ident">i64</span> {
                 <span class="kw">unsafe</span> {
                     <span class="kw">if</span> <span class="kw">let</span> (<span class="prelude-val">Some</span>(<span class="ident">res</span>), <span class="prelude-val">Some</span>(<span class="ident">bytes</span>)) <span class="op">=</span> (<span class="ident">result</span>.<span class="ident">as_mut</span>(), <span class="ident">bytes</span>.<span class="ident">as_ref</span>()) {
-                        <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">struct_type::from_bytes</span>(<span class="ident">slice::from_raw_parts</span>(<span class="ident">bytes</span>, <span class="ident">size</span>)).<span class="ident">unwrap</span>();
-                        <span class="kw-2">*</span><span class="ident">res</span> <span class="op">=</span> <span class="ident">Box::into_raw</span>(<span class="ident">Box::new</span>(<span class="ident">val</span>));
-                        <span class="kw">return</span> <span class="number">0</span>;
+                        <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">struct_type::from_bytes</span>(<span class="ident">slice::from_raw_parts</span>(<span class="ident">bytes</span>, <span class="ident">size</span>));
+                        <span class="kw">match</span> <span class="ident">val</span> {
+                            <span class="prelude-val">Ok</span>(<span class="ident">r</span>) =&gt; {
+                                <span class="kw-2">*</span><span class="ident">res</span> <span class="op">=</span> <span class="ident">Box::into_raw</span>(<span class="ident">Box::new</span>(<span class="ident">r</span>));
+                                <span class="kw">return</span> <span class="number">0</span>;
+                            },
+                            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span> <span class="op">-</span><span class="number">1</span>
+                        }
                     }
                     <span class="ident">NULLPOINTERERR</span>
                 }
             }
         }
-    }
+    };
 }
 
 <span class="macro">atms_serialisation!</span>(<span class="ident">signature</span>, <span class="ident">SignaturePtr</span>, <span class="ident">Signature</span>);
@@ -399,6 +441,8 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::aggregation::Avk</span>;
 
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
+<span class="doccomment">/// Generate a new signing key by choosing an integer uniformly at random from</span>
+<span class="doccomment">/// Zq, and generate a `ProofOfPossession` from this value, by returning `sk * H_2(b&quot;PoP&quot;)`.</span>
 <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">atms_generate_keypair</span>(
     <span class="ident">sk_ptr</span>: <span class="kw-2">*mut</span> <span class="ident">SigningKeyPtr</span>,
     <span class="ident">pk_ptr</span>: <span class="kw-2">*mut</span> <span class="ident">PublicKeyPoPPtr</span>,
@@ -417,6 +461,10 @@
 }
 
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
+<span class="doccomment">/// Verify the proof of possession with respect to the associated public key, by checking that</span>
+<span class="doccomment">/// `e(pk, H_2(b&quot;PoP&quot;)) = e(G1, pkpop)`.Returns:</span>
+<span class="doccomment">/// * 0 if proof is valid</span>
+<span class="doccomment">/// * -1 if proof is invalid</span>
 <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">atms_pkpop_to_pk</span>(<span class="ident">pkpop_ptr</span>: <span class="ident">PublicKeyPoPPtr</span>, <span class="ident">pk_ptr</span>: <span class="kw-2">*mut</span> <span class="ident">PublicKeyPtr</span>) -&gt; <span class="ident">i64</span> {
     <span class="kw">unsafe</span> {
         <span class="kw">if</span> <span class="kw">let</span> (<span class="prelude-val">Some</span>(<span class="ident">ref_pkpop</span>), <span class="prelude-val">Some</span>(<span class="ident">ref_pk</span>)) <span class="op">=</span> (<span class="ident">pkpop_ptr</span>.<span class="ident">as_ref</span>(), <span class="ident">pk_ptr</span>.<span class="ident">as_mut</span>()) {
@@ -433,6 +481,8 @@
 }
 
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
+<span class="doccomment">/// Produce a partial signature for message `msg`. The signature, `signature` is computed by hashing</span>
+<span class="doccomment">/// `msg` into `G2` and multiplying by the secret key,  `signature = sk * H_2(msg)`.</span>
 <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">atms_sign</span>(
     <span class="ident">msg_ptr</span>: <span class="kw-2">*const</span> <span class="ident">c_char</span>,
     <span class="ident">key_ptr</span>: <span class="ident">SigningKeyPtr</span>,
@@ -451,6 +501,11 @@
 }
 
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
+<span class="doccomment">/// Given a public key, `key`, a signature, `sig`, and a message, `msg`, a verifier</span>
+<span class="doccomment">/// accepts the signature if the following check succeeds: `e(pk, H_2(msg)) = e(G_1, signature)`.</span>
+<span class="doccomment">/// Returns:</span>
+<span class="doccomment">/// * 0 if signature is valid</span>
+<span class="doccomment">/// * -1 if signature is invalid</span>
 <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">atms_verify</span>(
     <span class="ident">msg_ptr</span>: <span class="kw-2">*const</span> <span class="ident">c_char</span>,
     <span class="ident">key_ptr</span>: <span class="ident">PublicKeyPtr</span>,
@@ -471,8 +526,10 @@
 }
 
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="doccomment">/// Performs the key registration. Returns 0 upon success, or -1 if one of the keys included in</span>
-<span class="doccomment">/// the registration have an invalid proof of possession.</span>
+<span class="doccomment">/// Performs the key registration. Note there exists the possibility of registering a single key in more</span>
+<span class="doccomment">/// than one position. Returns</span>
+<span class="doccomment">/// * 0 upon success</span>
+<span class="doccomment">/// * -1 if one of the keys included in the registration have an invalid proof of possession.</span>
 <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">avk_key_registration</span>(
     <span class="ident">keys</span>: <span class="kw-2">*const</span> <span class="ident">PublicKeyPoPPtr</span>,
     <span class="ident">nr_signers</span>: <span class="ident">usize</span>,
@@ -497,6 +554,8 @@
 }
 
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
+<span class="doccomment">/// Return an `Avk` key from the key registration. This consists of the merkle root</span>
+<span class="doccomment">/// of the vector commitment, the aggregate key and the number of parties.</span>
 <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">atms_registration_to_avk</span>(
     <span class="ident">avk_ptr</span>: <span class="kw-2">*mut</span> <span class="ident">AvkPtr</span>,
     <span class="ident">registration_ptr</span>: <span class="ident">RegistrationPtr</span>,
@@ -513,8 +572,17 @@
 }
 
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="doccomment">/// It aggregate the signatures submitted. For every signature submitted, this function</span>
-<span class="doccomment">/// automatically inclues one copy of the signature per position in the merkle tree.</span>
+<span class="doccomment">/// Aggregate a list of signatures.</span>
+<span class="doccomment">/// The signature aggregation can be performed by any third party. Given `nr_signatures` pairs of</span>
+<span class="doccomment">/// signatures, `sigs`,  with their corresponding public key `pks`</span>
+<span class="doccomment">/// the aggregator produces the aggregate signature. It begins by checking all signatures</span>
+<span class="doccomment">/// are valid, and which public keys</span>
+<span class="doccomment">/// are missing from the tuple of submitted signatures. It computes the proof</span>
+<span class="doccomment">/// of set membership within the set of eligible signers for the missing signers. Then it proceeds</span>
+<span class="doccomment">/// with the computation of the aggregate signature (addition of all submitted signatures). Returns:</span>
+<span class="doccomment">/// * 0 if all signatures are valid</span>
+<span class="doccomment">/// * -1 if one of the signatures is invalid</span>
+<span class="doccomment">/// * -2 if one of the submitted signatures comes from a non-registered participant</span>
 <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">atms_aggregate_sigs</span>(
     <span class="ident">msg_ptr</span>: <span class="kw-2">*const</span> <span class="ident">c_char</span>,
     <span class="ident">sigs_ptr</span>: <span class="kw-2">*const</span> <span class="ident">SignaturePtr</span>,
@@ -560,13 +628,14 @@
 }
 
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="doccomment">/// Verifies a signature `sig_ptr` under aggregated key `avk_ptr`. Returns:</span>
-<span class="doccomment">/// * 0 upon success</span>
-<span class="doccomment">/// * -1 if the threshold is not reached</span>
-<span class="doccomment">/// * -2 if there were duplicates keys in `self`</span>
-<span class="doccomment">/// * -3 if there is an invalid proof of Merkle Tree membership</span>
-<span class="doccomment">/// * -4 if a key in `self` is not found in `avk_ptr`</span>
-<span class="doccomment">/// * -5 if the signature is invalid</span>
+<span class="doccomment">/// Verifies a signature `sig` under aggregated key `avk`. Returns:</span>
+<span class="doccomment">/// * 0 if the signature is valid,</span>
+<span class="doccomment">/// * -1 if there are not enough signers,</span>
+<span class="doccomment">/// * -2 if there are duplicates in the non-signers,</span>
+<span class="doccomment">/// * -3 if the proof of membership is invalid,</span>
+<span class="doccomment">/// * -4 if the signature is invalid,</span>
+<span class="doccomment">/// * -5 if elements submitted are unexpected (such as the infinity point or the identity), and</span>
+<span class="doccomment">/// * -6 if the bytes represent invalid group elements.</span>
 <span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">atms_verify_aggr</span>(
     <span class="ident">msg_ptr</span>: <span class="kw-2">*const</span> <span class="ident">c_char</span>,
     <span class="ident">sig_ptr</span>: <span class="ident">AggregateSigPtr</span>,
@@ -595,5 +664,5 @@
     }
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="atms" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.59.0 (9d1b2106e 2022-02-23)" ></div>
+</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="atms" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
 </body></html>

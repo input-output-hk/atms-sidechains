@@ -1,6 +1,9 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src&#x2F;merkle_tree.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>merkle_tree.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
-    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a class="sidebar-logo" href="../../atms/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.png" alt="logo"></div>
-        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../atms/index.html"><img class="rust-logo" src="../../rust-logo.png" alt="logo"></a><nav class="sub"><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/merkle_tree.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>merkle_tree.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../atms/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../atms/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../atms/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -695,6 +698,20 @@
 <span id="693">693</span>
 <span id="694">694</span>
 <span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Merkle tree module, exposing several ops on Merkle Trees.</span>
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::MerkleTreeError</span>;
 <span class="kw">use</span> <span class="ident">digest</span>::{<span class="ident">Digest</span>, <span class="ident">FixedOutput</span>};
@@ -730,7 +747,7 @@
     <span class="doccomment">/// $S$ the output size of the digest function.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Layout</span>
-    <span class="doccomment">/// The layour of a `Path` is</span>
+    <span class="doccomment">/// The layout of a `Path` is</span>
     <span class="doccomment">/// * Length of path</span>
     <span class="doccomment">/// * Index of element</span>
     <span class="doccomment">/// * $n$ hash outputs</span>
@@ -780,13 +797,13 @@
     <span class="doccomment">/// # Layout</span>
     <span class="doccomment">/// The layout of a `Path` is</span>
     <span class="doccomment">/// * Length of proof, $n$</span>
-    <span class="doccomment">/// * Length of batch</span>
-    <span class="doccomment">/// * Indices of element</span>
+    <span class="doccomment">/// * Size of batch</span>
+    <span class="doccomment">/// * Indices of elements</span>
     <span class="doccomment">/// * $n$ hash outputs</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(
             <span class="number">4</span> <span class="op">+</span> <span class="number">4</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">indices</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="number">4</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="ident">D::output_size</span>(),
-        ); <span class="comment">// 4 values.len() + 4 size_batch + size_batch * 4 all indices + len * Digest::output_size() all values</span>
+        );
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">u32::try_from</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">len</span>()).<span class="ident">expect</span>(<span class="string">&quot;Length must fit in u32&quot;</span>);
         <span class="kw">let</span> <span class="ident">size_batch</span> <span class="op">=</span> <span class="ident">u32::try_from</span>(<span class="self">self</span>.<span class="ident">indices</span>.<span class="ident">len</span>()).<span class="ident">expect</span>(<span class="string">&quot;Length must fit in u32&quot;</span>);
         <span class="ident">result</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">len</span>.<span class="ident">to_be_bytes</span>());
@@ -860,7 +877,7 @@
     <span class="doccomment">/// # Example</span>
     <span class="doccomment">/// ```</span>
     <span class="doccomment">/// # use rand_core::{OsRng, RngCore};</span>
-    <span class="doccomment">/// # use atms::MerkleTree;</span>
+    <span class="doccomment">/// # use atms::merkle_tree::MerkleTree;</span>
     <span class="doccomment">/// # use blake2::Blake2b;</span>
     <span class="doccomment">/// # fn main() {</span>
     <span class="doccomment">/// let mut rng = OsRng::default();</span>
@@ -898,7 +915,7 @@
         <span class="prelude-val">Err</span>(<span class="ident">MerkleTreeError::InvalidPath</span>)
     }
 
-    <span class="doccomment">/// Check a proof of a batched opening</span>
+    <span class="doccomment">/// Check a proof of a batched opening. The indices must be ordered.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Error</span>
     <span class="doccomment">/// Returns an error if the proof is invalid.</span>
@@ -906,7 +923,7 @@
     <span class="doccomment">/// # Example</span>
     <span class="doccomment">/// ```</span>
     <span class="doccomment">/// # use rand_core::{OsRng, RngCore};</span>
-    <span class="doccomment">/// # use atms::MerkleTree;</span>
+    <span class="doccomment">/// # use atms::merkle_tree::MerkleTree;</span>
     <span class="doccomment">/// # use blake2::Blake2b;</span>
     <span class="doccomment">/// # fn main() {</span>
     <span class="doccomment">/// let mut rng = OsRng::default();</span>
@@ -1020,6 +1037,10 @@
 
     <span class="doccomment">/// Convert a `MerkleTreeCommitment` to a byte array of $S + 8$ bytes, where $S$ is the output</span>
     <span class="doccomment">/// size of the hash function.</span>
+    <span class="doccomment">/// # Layout</span>
+    <span class="doccomment">/// The layout of `MerkleTreeCommitment` is:</span>
+    <span class="doccomment">/// * Number of committed leaves,</span>
+    <span class="doccomment">/// * Merkle root</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="ident">D::output_size</span>() <span class="op">+</span> <span class="number">8</span>);
         <span class="ident">result</span>.<span class="ident">extend_from_slice</span>(
@@ -1055,12 +1076,12 @@
     <span class="doccomment">/// `nodes[0]` is the root,</span>
     <span class="doccomment">/// the parent of `nodes[i]` is `nodes[(i-1)/2]`</span>
     <span class="doccomment">/// the children of `nodes[i]` are `{nodes[2i + 1], nodes[2i + 2]}`</span>
-    <span class="doccomment">/// All nodes have size `Output&lt;D&gt;::output_size()`, even leafs (which are padded with</span>
-    <span class="doccomment">/// zeroes).</span>
+    <span class="doccomment">/// All nodes have size `Output&lt;D&gt;::output_size()`, even leafs (which are</span>
+    <span class="doccomment">/// hashed before committing them).</span>
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">nodes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The leaves begin at `nodes[leaf_off]`</span>
     <span class="ident">leaf_off</span>: <span class="ident">usize</span>,
-    <span class="doccomment">/// Number of leaves cached here</span>
+    <span class="doccomment">/// Number of leaves cached in the merkle tree</span>
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">n</span>: <span class="ident">usize</span>,
     <span class="doccomment">/// Phantom type to link the tree with its hasher</span>
     <span class="ident">hasher</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>,
@@ -1147,12 +1168,17 @@
         }
     }
 
-    <span class="doccomment">/// Get a path for a batch of leaves. We use the Octopus algorithm to avoid redundancy</span>
-    <span class="doccomment">/// with nodes in the path. First, the leaf indices are sorted. Then, for each level of</span>
-    <span class="doccomment">/// the Merkle tree, in a bottom-up order, for each index we add its parent to the list of</span>
-    <span class="doccomment">/// indices at the upper level. We then compute the index of its sibling. If the next</span>
-    <span class="doccomment">/// index to authenticate happens to be the sibling, then we skip the sibling.</span>
-    <span class="doccomment">/// Otherwise, we add the sibling to the list of authentication nodes.</span>
+    <span class="doccomment">/// Get a path for a batch of leaves. The indices must be ordered. We use the Octopus algorithm to</span>
+    <span class="doccomment">/// avoid redundancy with nodes in the path. Let `x1, . . . , xk` be the indices of elements we</span>
+    <span class="doccomment">/// want to produce an opening for. The algorithm takes as input `x1, . . ., xk`, and  proceeds as follows:</span>
+    <span class="doccomment">/// 1. Initialise the proof vector, `proof = []`.</span>
+    <span class="doccomment">/// 2. Given an input vector `v = v1, . . .,vl`, if `v.len() == 1`, return `proof`, else, continue.</span>
+    <span class="doccomment">/// 3. Map each `vi` to the corresponding number of the leaf (by adding the offset).</span>
+    <span class="doccomment">/// 4. Initialise a new empty vector `p = []`. Next, iterate over each element `vi`</span>
+    <span class="doccomment">///     a. Append the parent of `vi` to `p`</span>
+    <span class="doccomment">///     b. Compute the sibling, `si` of `vi`</span>
+    <span class="doccomment">///     c. If `si == v(i+1)` then do nothing, and skip step four for `v(i+1)`. Else append `si` to `proof`</span>
+    <span class="doccomment">/// 5. Iterate from step 2 with input vector `p`</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">/// If the indices provided are out of bounds (higher than the number of elements</span>
@@ -1213,8 +1239,13 @@
         <span class="self">self</span>.<span class="ident">leaf_off</span> <span class="op">+</span> <span class="ident">i</span>
     }
 
-    <span class="doccomment">/// Convert a `MerkleTree` into a byte string, containint $8 + n * S$ where $n$ is the</span>
+    <span class="doccomment">/// Convert a `MerkleTree` into a byte string, containing $4 + n * S$ where $n$ is the</span>
     <span class="doccomment">/// number of nodes and $S$ the output size of the hash function.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Layout</span>
+    <span class="doccomment">/// The layout of a `MerkleTree` is:</span>
+    <span class="doccomment">/// * Number of leaves committed in the Merkle Tree</span>
+    <span class="doccomment">/// * All nodes of the merkle tree (starting with the root)</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">Vec::with_capacity</span>(<span class="number">4</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">nodes</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="ident">D::output_size</span>());
         <span class="ident">result</span>.<span class="ident">extend_from_slice</span>(
@@ -1391,5 +1422,5 @@
     }
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="atms" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.59.0 (9d1b2106e 2022-02-23)" ></div>
+</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="atms" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
 </body></html>
