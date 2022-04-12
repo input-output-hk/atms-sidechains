@@ -1,4 +1,4 @@
-# Ad-hoc Threshold Multi-Signatures
+# Ad-hoc Threshold Multi-Signatures ![CI workflow](https://github.com/github/input-output-hk/atms-sidechains/actions/workflows/ci.yml/badge.svg) ![crates.io](https://img.shields.io/crates/v/atms.svg)
 
 Proof of Concept implementation. 
 This crate is ongoing work, has not been audited, and API is by no means final. 
@@ -46,7 +46,13 @@ rustup run nightly cbindgen ./ --config cbindgen.toml --crate atms --output targ
 
 ## Running tests
 
-Now we can build the test executable. First enter the `c-tests` folder, and then run:
+For running rust tests, simply run (recommended use of `--release`, otherwise it takes a while):
+
+```shell
+cargo test --release
+```
+
+For the c-tests, we first build the test executable. First enter the `c-tests` folder, and then run:
 
 ``` sh
 clang -x c++ tests.c stms.c atms.c -g -o tests -L ../target/release -lmithril -lstdc++ -lgtest -lgtest_main

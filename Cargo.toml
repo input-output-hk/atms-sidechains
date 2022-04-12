@@ -2,13 +2,18 @@
 name    = "atms"
 version = "0.1.0"
 edition = "2018"
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/input-output-hk/atms-sidechains"
+description = "An Ad-hoc Threshold MultiSignature primitive on Bls12-381."
+keywords = ["cryptography", "multisignature", "threshold", "bls12-381"]
 
 [lib]
 name = "atms"
 crate-type = ["lib", "cdylib", "staticlib"]
 
-[build]
-rustdocflags = [ "--html-in-header", "./src/docs-header.html" ]
+[package.metadata.docs.rs]
+rustdoc-args = [ "--html-in-header", "./src/docs-header.html" ]
 
 [dependencies]
 blst = "0.3.7"

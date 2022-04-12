@@ -155,14 +155,16 @@ impl PublicKeyPoP {
         let pk = match BlstPk::from_bytes(&bytes[..48]) {
             Ok(key) => PublicKey(key),
             Err(e) => {
-                return Err(blst_err_to_atms(e).expect_err("If it passed, blst returns and error different to SUCCESS."))
+                return Err(blst_err_to_atms(e)
+                    .expect_err("If it passed, blst returns and error different to SUCCESS."))
             }
         };
 
         let pop = match BlstSig::from_bytes(&bytes[48..]) {
             Ok(proof) => ProofOfPossession(proof),
             Err(e) => {
-                return Err(blst_err_to_atms(e).expect_err("If it passed, blst returns and error different to SUCCESS."))
+                return Err(blst_err_to_atms(e)
+                    .expect_err("If it passed, blst returns and error different to SUCCESS."))
             }
         };
 
