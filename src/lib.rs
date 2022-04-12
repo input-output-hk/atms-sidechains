@@ -14,6 +14,4 @@ mod error;
 pub mod merkle_tree;
 pub mod multi_sig;
 
-pub use crate::{
-    error::AtmsError,
-};
+pub use crate::error::AtmsError;

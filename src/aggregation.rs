@@ -20,7 +20,7 @@
 
 use crate::{
     error::{blst_err_to_atms, AtmsError},
-    merkle_tree::{BatchPath, MerkleTreeCommitment, MerkleTree},
+    merkle_tree::{BatchPath, MerkleTree, MerkleTreeCommitment},
     multi_sig::{PublicKey, PublicKeyPoP, Signature},
 };
 
@@ -236,8 +236,30 @@ where
     ///
     /// # Example
     /// ```
+    /// # use atms::multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey};
+    /// # use atms::aggregation::{AggregateSig, Registration};
+    /// # use atms::AtmsError;
+    /// # use blake2::Blake2b;
+    /// # use rand_core::OsRng;
+    /// # fn main() -> Result<(), AtmsError> {
+    /// let mut rng = OsRng;
+    /// let sk_1 = SigningKey::gen(&mut rng);
+    /// let pk_1 = PublicKey::from(&sk_1);
+    /// let pkpop_1 = PublicKeyPoP::from(&sk_1);
+    /// let sk_2 = SigningKey::gen(&mut rng);
+    /// let pk_2 = PublicKey::from(&sk_2);
+    /// let pkpop_2 = PublicKeyPoP::from(&sk_2);
     ///
-    /// ```
+    /// let atms_registration = Registration::<Blake2b>::new(&[pkpop_1.clone(), pkpop_1.clone()])?;
+    ///
+    /// let mut indices_1 = atms_registration.get_index(&pk_1);
+    /// indices_1.sort_unstable();
+    /// assert_eq!(indices_1, vec![0,1]);
+    ///
+    /// let indices_2 = atms_registration.get_index(&pk_2);
+    /// assert_eq!(indices_2, vec![]);
+    /// # Ok(())
+    /// # }
     pub fn get_index(&self, pk: &PublicKey) -> Vec<usize> {
         let mut indices = Vec::with_capacity(self.leaf_map.len());
         for (&idx, &reg_pk) in self.leaf_map.iter() {
@@ -261,6 +283,13 @@ where
     /// Convert a registration into a byte array. Not exposing serde of registration because
     /// passing the keys with PoP is cheaper and safer. This way we guarantee that a Registration
     /// can only be generated with valid keys.
+    ///
+    /// # Layout
+    /// The layout of a `Registration` is:
+    /// * Aggregate key
+    /// * Number of registered parties
+    /// * Hash map relating public keys to their position in the Merkle Tree commitment
+    /// * Merkle Tree
     #[allow(dead_code)]
     fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(

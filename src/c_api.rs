@@ -49,7 +49,7 @@ free_pointer!(avk, AvkPtr);
 use std::{intrinsics::copy_nonoverlapping, slice};
 /// Serialisation functions
 macro_rules! atms_serialisation {
-    ($type_name:ident, $pointer_type:ty, $struct_type:ty)=> {
+    ($type_name:ident, $pointer_type:ty, $struct_type:ty) => {
         paste::item! {
             #[no_mangle]
             /// Serialize
@@ -93,7 +93,7 @@ macro_rules! atms_serialisation {
                 }
             }
         }
-    }
+    };
 }
 
 atms_serialisation!(signature, SignaturePtr, Signature);

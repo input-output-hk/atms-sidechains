@@ -33,7 +33,7 @@ impl<D: Digest + FixedOutput> Path<D> {
     /// $S$ the output size of the digest function.
     ///
     /// # Layout
-    /// The layour of a `Path` is
+    /// The layout of a `Path` is
     /// * Length of path
     /// * Index of element
     /// * $n$ hash outputs
@@ -83,13 +83,13 @@ impl<D: Digest + FixedOutput> BatchPath<D> {
     /// # Layout
     /// The layout of a `Path` is
     /// * Length of proof, $n$
-    /// * Length of batch
-    /// * Indices of element
+    /// * Size of batch
+    /// * Indices of elements
     /// * $n$ hash outputs
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(
             4 + 4 + self.indices.len() * 4 + self.values.len() * D::output_size(),
-        ); // 4 values.len() + 4 size_batch + size_batch * 4 all indices + len * Digest::output_size() all values
+        );
         let len = u32::try_from(self.values.len()).expect("Length must fit in u32");
         let size_batch = u32::try_from(self.indices.len()).expect("Length must fit in u32");
         result.extend_from_slice(&len.to_be_bytes());
@@ -163,7 +163,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     /// # Example
     /// ```
     /// # use rand_core::{OsRng, RngCore};
-    /// # use atms::MerkleTree;
+    /// # use atms::merkle_tree::MerkleTree;
     /// # use blake2::Blake2b;
     /// # fn main() {
     /// let mut rng = OsRng::default();
@@ -201,7 +201,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         Err(MerkleTreeError::InvalidPath)
     }
 
-    /// Check a proof of a batched opening
+    /// Check a proof of a batched opening. The indices must be ordered.
     ///
     /// # Error
     /// Returns an error if the proof is invalid.
@@ -209,7 +209,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     /// # Example
     /// ```
     /// # use rand_core::{OsRng, RngCore};
-    /// # use atms::MerkleTree;
+    /// # use atms::merkle_tree::MerkleTree;
     /// # use blake2::Blake2b;
     /// # fn main() {
     /// let mut rng = OsRng::default();
@@ -323,6 +323,10 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
 
     /// Convert a `MerkleTreeCommitment` to a byte array of $S + 8$ bytes, where $S$ is the output
     /// size of the hash function.
+    /// # Layout
+    /// The layout of `MerkleTreeCommitment` is:
+    /// * Number of committed leaves,
+    /// * Merkle root
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(D::output_size() + 8);
         result.extend_from_slice(
@@ -358,12 +362,12 @@ pub struct MerkleTree<D: Digest + FixedOutput> {
     /// `nodes[0]` is the root,
     /// the parent of `nodes[i]` is `nodes[(i-1)/2]`
     /// the children of `nodes[i]` are `{nodes[2i + 1], nodes[2i + 2]}`
-    /// All nodes have size `Output<D>::output_size()`, even leafs (which are padded with
-    /// zeroes).
+    /// All nodes have size `Output<D>::output_size()`, even leafs (which are
+    /// hashed before committing them).
     pub(crate) nodes: Vec<Vec<u8>>,
     /// The leaves begin at `nodes[leaf_off]`
     leaf_off: usize,
-    /// Number of leaves cached here
+    /// Number of leaves cached in the merkle tree
     pub(crate) n: usize,
     /// Phantom type to link the tree with its hasher
     hasher: PhantomData<D>,
@@ -450,12 +454,17 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         }
     }
 
-    /// Get a path for a batch of leaves. We use the Octopus algorithm to avoid redundancy
-    /// with nodes in the path. First, the leaf indices are sorted. Then, for each level of
-    /// the Merkle tree, in a bottom-up order, for each index we add its parent to the list of
-    /// indices at the upper level. We then compute the index of its sibling. If the next
-    /// index to authenticate happens to be the sibling, then we skip the sibling.
-    /// Otherwise, we add the sibling to the list of authentication nodes.
+    /// Get a path for a batch of leaves. The indices must be ordered. We use the Octopus algorithm to
+    /// avoid redundancy with nodes in the path. Let `x1, . . . , xk` be the indices of elements we
+    /// want to produce an opening for. The algorithm takes as input `x1, . . ., xk`, and  proceeds as follows:
+    /// 1. Initialise the proof vector, `proof = []`.
+    /// 2. Given an input vector `v = v1, . . .,vl`, if `v.len() == 1`, return `proof`, else, continue.
+    /// 3. Map each `vi` to the corresponding number of the leaf (by adding the offset).
+    /// 4. Initialise a new empty vector `p = []`. Next, iterate over each element `vi`
+    ///     a. Append the parent of `vi` to `p`
+    ///     b. Compute the sibling, `si` of `vi`
+    ///     c. If `si == v(i+1)` then do nothing, and skip step four for `v(i+1)`. Else append `si` to `proof`
+    /// 5. Iterate from step 2 with input vector `p`
     ///
     /// # Panics
     /// If the indices provided are out of bounds (higher than the number of elements
@@ -516,8 +525,13 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         self.leaf_off + i
     }
 
-    /// Convert a `MerkleTree` into a byte string, containint $8 + n * S$ where $n$ is the
+    /// Convert a `MerkleTree` into a byte string, containing $4 + n * S$ where $n$ is the
     /// number of nodes and $S$ the output size of the hash function.
+    ///
+    /// # Layout
+    /// The layout of a `MerkleTree` is:
+    /// * Number of leaves committed in the Merkle Tree
+    /// * All nodes of the merkle tree (starting with the root)
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(4 + self.nodes.len() * D::output_size());
         result.extend_from_slice(
