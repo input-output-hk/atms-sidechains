@@ -1,4 +1,4 @@
-# Ad-hoc Threshold Multi-Signatures ![CI workflow](https://github.com/github/input-output-hk/atms-sidechains/actions/workflows/ci.yml/badge.svg) ![crates.io](https://img.shields.io/crates/v/atms.svg)
+# Ad-hoc Threshold Multi-Signatures ![CI workflow](https://github.com/input-output-hk/atms-sidechains/actions/workflows/ci.yml/badge.svg) ![crates.io](https://img.shields.io/crates/v/atms.svg)
 
 Proof of Concept implementation. 
 This crate is ongoing work, has not been audited, and API is by no means final. 
