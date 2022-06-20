@@ -513,6 +513,7 @@ where
                 avk.mt_commitment.check_batched(&compressed_keys, proof)?;
                 // todo: best compress or serialize?
                 for non_signer in &self.keys {
+                    // todo: do we actually need non-signers to be distinct?
                     non_signing_size += 1;
                     // Check non-signers are distinct
                     if !unique_non_signers.insert(non_signer) {

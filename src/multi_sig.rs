@@ -108,7 +108,7 @@ impl From<&SigningKey> for ProofOfPossession {
 /// tuple.
 impl From<&SigningKey> for PublicKeyPoP {
     fn from(sk: &SigningKey) -> Self {
-        Self(PublicKey(sk.0.sk_to_pk()), sk.into())
+        Self(sk.into(), sk.into())
     }
 }
 
@@ -349,6 +349,7 @@ impl<'a> Sum<&'a Self> for Signature {
         I: Iterator<Item = &'a Self>,
     {
         let signatures: Vec<&BlstSig> = iter.map(|x| &x.0).collect();
+        assert!(!signatures.is_empty(), "One cannot add an empty vector");
         let aggregate = AggregateSignature::aggregate(&signatures, false).expect("Signatures are assumed verified before aggregation. If signatures are invalid, they should not be aggregated.");
         Self(aggregate.to_signature())
     }
