@@ -602,7 +602,7 @@ where
         aggregate_sig_bytes
     }
 
-    #[allow(unused_mut)]
+    #[allow(unused_mut, unused_variables)]
     /// Deserialise a byte string to an `AggregateSig`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
         let mut u32_bytes = [0u8; 4];
@@ -611,9 +611,9 @@ where
             .expect("Library should be built in 32 bit targets or higher");
 
         let mut offset = 4;
+        let mut size_proofs = 0;
         #[cfg(not(feature = "efficient-mtproof"))]
         {
-            let mut size_proofs = 0;
             if non_signers > 0 {
                 offset += 4;
                 u32_bytes.copy_from_slice(&bytes[4..8]);
