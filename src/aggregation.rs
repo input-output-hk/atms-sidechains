@@ -18,15 +18,15 @@
 
 #![allow(clippy::type_complexity)]
 
+#[cfg(feature = "efficient-mtproof")]
+use crate::merkle_tree::BatchPath;
+#[cfg(not(feature = "efficient-mtproof"))]
+use crate::merkle_tree::Path;
 use crate::{
     error::{blst_err_to_atms, AtmsError},
     merkle_tree::{MerkleTree, MerkleTreeCommitment},
     multi_sig::{PublicKey, PublicKeyPoP, Signature},
 };
-#[cfg(feature = "efficient-mtproof")]
-use crate::merkle_tree::BatchPath;
-#[cfg(not(feature = "efficient-mtproof"))]
-use crate::merkle_tree::Path;
 
 use blake2::Digest;
 use digest::FixedOutput;
@@ -417,8 +417,7 @@ where
 
         let proof = if keys.is_empty() {
             None
-        }
-        else {
+        } else {
             #[cfg(feature = "efficient-mtproof")]
             {
                 // We need to order keys and indices. Note that before committing to the keys
@@ -432,9 +431,12 @@ where
             {
                 keys.sort_unstable();
                 non_signer_indices.sort_unstable();
-                Some(non_signer_indices.iter().map(|&idx| {
-                    registration.tree.get_path(idx)
-                }).collect())
+                Some(
+                    non_signer_indices
+                        .iter()
+                        .map(|&idx| registration.tree.get_path(idx))
+                        .collect(),
+                )
             }
         };
 
@@ -570,10 +572,17 @@ where
 
         #[cfg(not(feature = "efficient-mtproof"))]
         if nr_non_signers > 0 {
-            aggregate_sig_bytes
-                .extend_from_slice(&u32::try_from(
-                    self.proof.as_ref().expect("If nr of non_signers is > 0, there will be a proof")[0].values.len()
-                ).expect("Length must fit in u32").to_be_bytes());
+            aggregate_sig_bytes.extend_from_slice(
+                &u32::try_from(
+                    self.proof
+                        .as_ref()
+                        .expect("If nr of non_signers is > 0, there will be a proof")[0]
+                        .values
+                        .len(),
+                )
+                .expect("Length must fit in u32")
+                .to_be_bytes(),
+            );
         }
 
         aggregate_sig_bytes.extend_from_slice(&self.aggregate.to_bytes());
@@ -593,6 +602,7 @@ where
         aggregate_sig_bytes
     }
 
+    #[allow(unused_mut)]
     /// Deserialise a byte string to an `AggregateSig`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
         let mut u32_bytes = [0u8; 4];
@@ -601,14 +611,16 @@ where
             .expect("Library should be built in 32 bit targets or higher");
 
         let mut offset = 4;
-        let mut size_proofs = 0;
         #[cfg(not(feature = "efficient-mtproof"))]
-        if non_signers > 0 {
-            offset += 4;
-            u32_bytes.copy_from_slice(&bytes[4..8]);
-            // todo: properly handle this
-            size_proofs = usize::try_from(u32::from_be_bytes(u32_bytes))
-                .expect("Library should be built in 32 bit targets or higher");
+        {
+            let mut size_proofs = 0;
+            if non_signers > 0 {
+                offset += 4;
+                u32_bytes.copy_from_slice(&bytes[4..8]);
+                // todo: properly handle this
+                size_proofs = usize::try_from(u32::from_be_bytes(u32_bytes))
+                    .expect("Library should be built in 32 bit targets or higher");
+            }
         }
 
         let aggregate = Signature::from_bytes(&bytes[offset..])?;
@@ -624,7 +636,9 @@ where
         let proof = if non_signers > 0 {
             let proof_offset = offset + 96 + non_signers * 48;
             #[cfg(feature = "efficient-mtproof")]
-            Some(BatchPath::from_bytes(&bytes[proof_offset..])?);
+            {
+                Some(BatchPath::from_bytes(&bytes[proof_offset..])?)
+            }
             #[cfg(not(feature = "efficient-mtproof"))]
             {
                 let proof_size = H::output_size() * size_proofs + 8; // plus 8 for the index and depth
