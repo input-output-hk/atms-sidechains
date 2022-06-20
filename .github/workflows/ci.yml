@@ -60,6 +60,12 @@ jobs:
           command: test
           args: --release --manifest-path ./Cargo.toml
 
+      - name: Run cargo test non-default
+          uses: actions-rs/cargo@v1
+          with:
+            command: test
+            args: --release --no-default-features --manifest-path ./Cargo.toml
+
       - name: Run cargo doc
         uses: actions-rs/cargo@v1
         with:
