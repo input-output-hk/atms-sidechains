@@ -122,7 +122,7 @@ where
     /// * Nr of parties
     /// * Merkle tree commitment
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(48 + 4 + H::output_size());
+        let mut result = Vec::with_capacity(48 + 4 + <H as Digest>::output_size());
         result.extend_from_slice(&self.aggregate_key.to_bytes());
         result.extend_from_slice(
             &u32::try_from(self.nr_parties)
@@ -301,7 +301,7 @@ where
     #[allow(dead_code)]
     fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(
-            48 + 4 + self.leaf_map.len() * (48 + 4) + 4 + self.tree.nodes.len() * H::output_size(),
+            48 + 4 + self.leaf_map.len() * (48 + 4) + 4 + self.tree.nodes.len() * <H as Digest>::output_size(),
         );
         result.extend_from_slice(&self.aggregate_key.to_bytes());
         let len = u32::try_from(self.leaf_map.len()).expect("Length must fit in u32");
@@ -568,6 +568,7 @@ where
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut aggregate_sig_bytes = Vec::new();
         let nr_non_signers = u32::try_from(self.keys.len()).expect("Length must fit in u32");
+        println!("Num of non signers: {:?}", nr_non_signers);
         aggregate_sig_bytes.extend_from_slice(&nr_non_signers.to_be_bytes());
 
         #[cfg(not(feature = "efficient-mtproof"))]
@@ -641,7 +642,7 @@ where
             }
             #[cfg(not(feature = "efficient-mtproof"))]
             {
-                let proof_size = H::output_size() * size_proofs + 8; // plus 8 for the index and depth
+                let proof_size = <H as Digest>::output_size() * size_proofs + 8; // plus 8 for the index and depth
                 let mut mt_proofs = Vec::with_capacity(non_signers);
                 for i in 0..non_signers {
                     mt_proofs.push(Path::from_bytes(&bytes[proof_offset + i * proof_size..])?);

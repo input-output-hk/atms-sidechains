@@ -17,8 +17,8 @@ rustdoc-args = [ "--html-in-header", "./src/docs-header.html" ]
 
 [dependencies]
 blst = "0.3.7"
-digest = "0.9"
-blake2      = "0.9"
+digest = "0.10"
+blake2      = "0.10"
 thiserror = "1.0"
 rand_core   = "0.6.3"
 libc        = "0.2.40"

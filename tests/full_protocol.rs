@@ -4,6 +4,7 @@ use atms::{
     AtmsError,
 };
 use blake2::Blake2b;
+use num_bigint::U32Digits;
 use rand::prelude::IteratorRandom;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
@@ -39,7 +40,7 @@ fn full_protocol() -> Result<(), AtmsError> {
     }
 
     // With this data, we can register all eligible parties.
-    let atms_registration_1 = Registration::<Blake2b>::new(&qp_keys)?;
+    let atms_registration_1 = Registration::<Blake2b<U32>>::new(&qp_keys)?;
 
     // Once the registration is performed, we can generate the avk
     let avk_1 = atms_registration_1.to_avk();
@@ -70,7 +71,7 @@ fn full_protocol() -> Result<(), AtmsError> {
     }
 
     // With this data, we can register the eligible parties.
-    let atms_registration_2 = Registration::<Blake2b>::new(&qp_keys)?;
+    let atms_registration_2 = Registration::<Blake2b<U32>>::new(&qp_keys)?;
 
     let avk_2 = atms_registration_2.to_avk();
     // Now the parties can sign messages. No need of interaction.

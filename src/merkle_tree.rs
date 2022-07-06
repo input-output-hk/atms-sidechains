@@ -38,7 +38,7 @@ impl<D: Digest + FixedOutput> Path<D> {
     /// * Index of element
     /// * $n$ hash outputs
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(4 + 4 + self.values.len() * D::output_size());
+        let mut result = Vec::with_capacity(4 + 4 + self.values.len() * <D as Digest>::output_size());
         let len = u32::try_from(self.values.len()).expect("Length must fit in u32");
         result.extend_from_slice(&len.to_be_bytes());
         result.extend_from_slice(
@@ -62,7 +62,7 @@ impl<D: Digest + FixedOutput> Path<D> {
         u32_bytes.copy_from_slice(&bytes[4..8]);
         let index = usize::try_from(u32::from_be_bytes(u32_bytes))
             .expect("Library should be built in 32 bit targets or higher");
-        let node_size = D::output_size();
+        let node_size = <D as Digest>::output_size();
 
         let mut vec_nodes = Vec::with_capacity(size);
         for slice in bytes[8..8 + node_size * size].chunks(node_size) {
@@ -88,7 +88,7 @@ impl<D: Digest + FixedOutput> BatchPath<D> {
     /// * $n$ hash outputs
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(
-            4 + 4 + self.indices.len() * 4 + self.values.len() * D::output_size(),
+            4 + 4 + self.indices.len() * 4 + self.values.len() * <D as Digest>::output_size(),
         );
         let len = u32::try_from(self.values.len()).expect("Length must fit in u32");
         let size_batch = u32::try_from(self.indices.len()).expect("Length must fit in u32");
@@ -128,7 +128,7 @@ impl<D: Digest + FixedOutput> BatchPath<D> {
             );
         }
 
-        let node_size = D::output_size();
+        let node_size = <D as Digest>::output_size();
         let mut vec_nodes = Vec::with_capacity(len);
         for slice in bytes[8 + 4 * size_batch..].chunks(node_size) {
             vec_nodes.push(slice.to_vec());
@@ -328,7 +328,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     /// * Number of committed leaves,
     /// * Merkle root
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(D::output_size() + 8);
+        let mut result = Vec::with_capacity(<D as Digest>::output_size() + 8);
         result.extend_from_slice(
             &u32::try_from(self.nr_leaves)
                 .expect("Index must fit in u32")
@@ -344,7 +344,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
         usize_bytes.copy_from_slice(&bytes[..4]);
         let nr_leaves = usize::try_from(u32::from_be_bytes(usize_bytes))
             .expect("Library should be built in 32 bit targets or higher");
-        if bytes[4..].len() == D::output_size() {
+        if bytes[4..].len() == <D as Digest>::output_size() {
             return Ok(Self {
                 value: bytes[4..].to_vec(),
                 nr_leaves,
@@ -533,7 +533,7 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
     /// * Number of leaves committed in the Merkle Tree
     /// * All nodes of the merkle tree (starting with the root)
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(4 + self.nodes.len() * D::output_size());
+        let mut result = Vec::with_capacity(4 + self.nodes.len() * <D as Digest>::output_size());
         result.extend_from_slice(
             &u32::try_from(self.n)
                 .expect("Length must fit in u32")
@@ -554,7 +554,7 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         let num_nodes = n + n - 1;
         let mut nodes = Vec::with_capacity(num_nodes);
         for i in 0..num_nodes {
-            nodes.push(bytes[4 + i * D::output_size()..4 + (i + 1) * D::output_size()].to_vec());
+            nodes.push(bytes[4 + i * <D as Digest>::output_size()..4 + (i + 1) * <D as Digest>::output_size()].to_vec());
         }
         Ok(Self {
             nodes,

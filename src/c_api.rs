@@ -7,10 +7,11 @@ use crate::{
 };
 use rand_core::OsRng;
 use std::{ffi::CStr, os::raw::c_char};
+use digest::consts::U32;
 
 pub const NULLPOINTERERR: i64 = -99;
 
-type H = blake2::Blake2b;
+type H = blake2::Blake2b<U32>;
 type SigningKeyPtr = *mut SigningKey;
 type PublicKeyPoPPtr = *mut PublicKeyPoP;
 type PublicKeyPtr = *mut PublicKey;
