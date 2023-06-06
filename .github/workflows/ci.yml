@@ -100,7 +100,7 @@ jobs:
         run: cargo install cbindgen
 
       - name: Produce header files
-        run: cd ${GITHUB_WORKSPACE} && RUSTC_BOOTSTRAP=1 cbindgen ./ --config cbindgen.toml --crate atms --output target/include/atms.h
+        run: cd ${GITHUB_WORKSPACE} && echo pwd && RUSTC_BOOTSTRAP=1 cbindgen ./ --config cbindgen.toml --crate atms --output target/include/atms.h
 
       - name: Build C test
         run: clang -x c++ tests.c atms.c multi_sig.c serialisation.c -g -o tests -L ../target/release -latms -lpthread -lstdc++ -lgtest -lgtest_main
