@@ -38,7 +38,8 @@ impl<D: Digest + FixedOutput> Path<D> {
     /// * Index of element
     /// * $n$ hash outputs
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(4 + 4 + self.values.len() * <D as Digest>::output_size());
+        let mut result =
+            Vec::with_capacity(4 + 4 + self.values.len() * <D as Digest>::output_size());
         let len = u32::try_from(self.values.len()).expect("Length must fit in u32");
         result.extend_from_slice(&len.to_be_bytes());
         result.extend_from_slice(
@@ -165,6 +166,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     /// # use rand_core::{OsRng, RngCore};
     /// # use atms::merkle_tree::MerkleTree;
     /// # use blake2::Blake2b;
+    /// # use digest::consts::U32;
     /// # fn main() {
     /// let mut rng = OsRng::default();
     /// // We generate the keys.
@@ -175,7 +177,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     ///     keys.push(leaf.to_vec());
     /// }
     /// // Compute the Merkle tree of the keys.
-    /// let mt = MerkleTree::<Blake2b>::create(&keys);
+    /// let mt = MerkleTree::<Blake2b<U32>>::create(&keys);
     /// // Compute the path of key in position 3.
     /// let path = mt.get_path(3);
     /// // Verify the proof of membership with respect to the merkle commitment.
@@ -211,6 +213,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     /// # use rand_core::{OsRng, RngCore};
     /// # use atms::merkle_tree::MerkleTree;
     /// # use blake2::Blake2b;
+    /// # use digest::consts::U32;
     /// # fn main() {
     /// let mut rng = OsRng::default();
     /// // We generate the keys.
@@ -221,7 +224,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     ///     keys.push(leaf.to_vec());
     /// }
     /// // Compute the Merkle tree of the keys.
-    /// let mt = MerkleTree::<Blake2b>::create(&keys);
+    /// let mt = MerkleTree::<Blake2b<U32>>::create(&keys);
     /// // Compute the path of keys in position [1, 3, 7, 11].
     /// let indices = vec![1, 3, 7, 11];
     /// let values = indices.iter().map(|i| keys[*i].clone()).collect::<Vec<_>>();
@@ -324,7 +327,7 @@ impl<D: Digest + FixedOutput> MerkleTreeCommitment<D> {
     /// Convert a `MerkleTreeCommitment` to a byte array of $S + 8$ bytes, where $S$ is the output
     /// size of the hash function.
     /// # Layout
-    /// The layout of `MerkleTreeCommitment` is:
+    ///
     /// * Number of committed leaves,
     /// * Merkle root
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -554,7 +557,11 @@ impl<D: Digest + FixedOutput> MerkleTree<D> {
         let num_nodes = n + n - 1;
         let mut nodes = Vec::with_capacity(num_nodes);
         for i in 0..num_nodes {
-            nodes.push(bytes[4 + i * <D as Digest>::output_size()..4 + (i + 1) * <D as Digest>::output_size()].to_vec());
+            nodes.push(
+                bytes[4 + i * <D as Digest>::output_size()
+                    ..4 + (i + 1) * <D as Digest>::output_size()]
+                    .to_vec(),
+            );
         }
         Ok(Self {
             nodes,
@@ -602,13 +609,14 @@ fn sibling(i: usize) -> usize {
 mod tests {
     use super::*;
     use blake2::Blake2b;
+    use digest::consts::U32;
     use proptest::collection::{hash_set, vec};
     use proptest::prelude::*;
 
     prop_compose! {
         fn arb_tree(max_size: u32)
-                   (v in vec(vec(any::<u8>(), 2..16), 2..(max_size as usize))) -> (MerkleTree<blake2::Blake2b>, Vec<Vec<u8>>) {
-             (MerkleTree::<blake2::Blake2b>::create(&v), v)
+                   (v in vec(vec(any::<u8>(), 2..16), 2..(max_size as usize))) -> (MerkleTree<blake2::Blake2b<U32>>, Vec<Vec<u8>>) {
+             (MerkleTree::<blake2::Blake2b<U32>>::create(&v), v)
         }
     }
 
@@ -647,15 +655,15 @@ mod tests {
                 assert!(t.to_commitment().check(&values[i], &pf).is_ok());
 
                 let bytes = pf.to_bytes();
-                let test2 = Path::<Blake2b>::from_bytes(&bytes).unwrap();
+                let test2 = Path::<Blake2b<U32>>::from_bytes(&bytes).unwrap();
                 assert!(t.to_commitment().check(&values[i], &test2).is_ok());
 
                 let bytes = t.to_bytes();
-                let test = MerkleTree::<Blake2b>::from_bytes(&bytes).unwrap();
+                let test = MerkleTree::<Blake2b<U32>>::from_bytes(&bytes).unwrap();
                 assert!(test.to_commitment().check(&values[i], &test2).is_ok());
 
                 let bytes = t.to_commitment().to_bytes();
-                let test = MerkleTreeCommitment::<Blake2b>::from_bytes(&bytes).unwrap();
+                let test = MerkleTreeCommitment::<Blake2b<U32>>::from_bytes(&bytes).unwrap();
                 assert!(test.check(&values[i], &test2).is_ok());
             })
         }
@@ -700,9 +708,9 @@ mod tests {
             i in any::<usize>(),
             (values, proof) in values_with_invalid_proof(10)
         ) {
-            let t = MerkleTree::<blake2::Blake2b>::create(&values[1..]);
+            let t = MerkleTree::<blake2::Blake2b<U32>>::create(&values[1..]);
             let idx = i % (values.len() - 1);
-            let path = Path{values: proof, index: idx, hasher: PhantomData::<Blake2b>::default()};
+            let path = Path{values: proof, index: idx, hasher: PhantomData::<Blake2b<U32>>::default()};
             assert!(t.to_commitment().check(&values[0], &path).is_err());
         }
     }

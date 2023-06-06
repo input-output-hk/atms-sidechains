@@ -34,3 +34,4 @@ rand = "0.8"
 [features]
 default = ["efficient-mtproof"]
 efficient-mtproof = []
+raw_signature = []

@@ -25,7 +25,7 @@ use blst::min_pk::{
     AggregatePublicKey, AggregateSignature, PublicKey as BlstPk, SecretKey as BlstSk,
     Signature as BlstSig,
 };
-use blst::BLST_ERROR;
+use blst::{blst_p2, BLST_ERROR};
 use rand_core::{CryptoRng, RngCore};
 use std::{
     cmp::Ordering,
@@ -69,8 +69,44 @@ impl SigningKey {
 
     /// Produce a partial signature for message `msg`. The signature, $\sigma$ is computed by hashing
     /// `msg` into $\mathbb{G}_2$ and multiplying by the secret key,  $\sigma = sk * H_2(msg)$.
+    #[cfg(not(feature = "raw_signature"))]
     pub fn sign(&self, msg: &[u8]) -> Signature {
         Signature(self.0.sign(msg, &[], &[]))
+    }
+
+    #[cfg(feature = "raw_signature")]
+    pub fn sign(&self, msg: &[u8]) -> Signature {
+        use blst::{
+            blst_hash_to_g2, blst_lendian_from_scalar, blst_p2_affine, blst_p2_generator,
+            blst_p2_mult, blst_p2_to_affine, blst_scalar,
+        };
+
+        let mut sig_aff = blst_p2_affine::default();
+        unsafe {
+            let mut sk_bytes = [0u8; 32];
+            let sk_scalar = std::mem::transmute::<&BlstSk, &blst_scalar>(&self.0);
+            blst_lendian_from_scalar(sk_bytes.as_mut_ptr(), sk_scalar);
+
+            let g2_gen = blst_p2_generator();
+            let mut hashed_msg = blst_p2::default();
+            let mut sig_pt = blst_p2::default();
+            blst_hash_to_g2(
+                &mut hashed_msg,
+                msg.as_ptr(),
+                msg.len(),
+                [].as_ptr(),
+                0,
+                [].as_ptr(),
+                0,
+            );
+            blst_p2_mult(&mut sig_pt, g2_gen, sk_bytes.as_ptr(), 32);
+
+            blst_p2_to_affine(&mut sig_aff, &sig_pt);
+        }
+
+        let sig = unsafe { std::mem::transmute::<&blst_p2_affine, &BlstSig>(&sig_aff) };
+
+        Signature(*sig)
     }
 
     /// Convert the secret key into byte string.

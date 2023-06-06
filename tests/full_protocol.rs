@@ -4,7 +4,7 @@ use atms::{
     AtmsError,
 };
 use blake2::Blake2b;
-use num_bigint::U32Digits;
+use digest::consts::U32;
 use rand::prelude::IteratorRandom;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;

@@ -5,9 +5,9 @@ use crate::{
     error::AtmsError,
     multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey},
 };
+use digest::consts::U32;
 use rand_core::OsRng;
 use std::{ffi::CStr, os::raw::c_char};
-use digest::consts::U32;
 
 pub const NULLPOINTERERR: i64 = -99;
 

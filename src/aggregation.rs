@@ -29,7 +29,7 @@ use crate::{
 };
 
 use blake2::Digest;
-use digest::FixedOutput;
+use digest::{consts::U32, FixedOutput};
 use std::convert::TryFrom;
 use std::{
     collections::{HashMap, HashSet},
@@ -88,6 +88,7 @@ where
     /// # use atms::AtmsError;
     /// # use blake2::Blake2b;
     /// # use rand_core::OsRng;
+    /// # use digest::consts::U32;
     /// # fn main() -> Result<(), AtmsError> {
     /// let n = 10; // nr of eligible signers
     /// let threshold: usize = n - ((n - 1) / 3);
@@ -100,7 +101,7 @@ where
     ///     keyspop.push(pkpop);
     /// }
     ///
-    /// let atms_registration = Registration::<Blake2b>::new(&keyspop)?;
+    /// let atms_registration = Registration::<Blake2b<U32>>::new(&keyspop)?;
     /// assert!(atms_registration.to_avk().check(&keyspop).is_ok());
     /// # Ok(())
     /// # }
@@ -117,18 +118,12 @@ where
     /// hash function.
     ///
     /// # Layout
-    /// The layout of an `Avk` is
+    ///
     /// * Aggregate key
-    /// * Nr of parties
     /// * Merkle tree commitment
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(48 + 4 + <H as Digest>::output_size());
         result.extend_from_slice(&self.aggregate_key.to_bytes());
-        result.extend_from_slice(
-            &u32::try_from(self.nr_parties)
-                .expect("Length must fit in u32")
-                .to_be_bytes(),
-        );
         result.extend_from_slice(&self.mt_commitment.to_bytes());
         result
     }
@@ -140,17 +135,12 @@ where
     /// # Error
     /// Function fails if the byte representation corresponds to an invalid Avk
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, AtmsError> {
-        let mut nr_bytes = [0u8; 4];
-        nr_bytes.copy_from_slice(&bytes[48..52]);
-
         let aggregate_key = PublicKey::from_bytes(bytes)?;
-        let nr_parties = usize::try_from(u32::from_be_bytes(nr_bytes))
-            .expect("Library should be built in 32 bit targets or higher");
-        let mt_commitment = MerkleTreeCommitment::from_bytes(&bytes[52..])?;
+        let mt_commitment = MerkleTreeCommitment::from_bytes(&bytes[48..])?;
         Ok(Self {
             aggregate_key,
+            nr_parties: mt_commitment.nr_leaves,
             mt_commitment,
-            nr_parties,
         })
     }
 }
@@ -249,6 +239,7 @@ where
     /// # use atms::AtmsError;
     /// # use blake2::Blake2b;
     /// # use rand_core::OsRng;
+    /// # use digest::consts::U32;
     /// # fn main() -> Result<(), AtmsError> {
     /// let mut rng = OsRng;
     /// let sk_1 = SigningKey::gen(&mut rng);
@@ -258,7 +249,7 @@ where
     /// let pk_2 = PublicKey::from(&sk_2);
     /// let pkpop_2 = PublicKeyPoP::from(&sk_2);
     ///
-    /// let atms_registration = Registration::<Blake2b>::new(&[pkpop_1.clone(), pkpop_1.clone()])?;
+    /// let atms_registration = Registration::<Blake2b<U32>>::new(&[pkpop_1.clone(), pkpop_1.clone()])?;
     ///
     /// let mut indices_1 = atms_registration.get_index(&pk_1);
     /// indices_1.sort_unstable();
@@ -301,7 +292,10 @@ where
     #[allow(dead_code)]
     fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(
-            48 + 4 + self.leaf_map.len() * (48 + 4) + 4 + self.tree.nodes.len() * <H as Digest>::output_size(),
+            48 + 4
+                + self.leaf_map.len() * (48 + 4)
+                + 4
+                + self.tree.nodes.len() * <H as Digest>::output_size(),
         );
         result.extend_from_slice(&self.aggregate_key.to_bytes());
         let len = u32::try_from(self.leaf_map.len()).expect("Length must fit in u32");
@@ -471,6 +465,7 @@ where
     /// # use atms::AtmsError;
     /// # use blake2::Blake2b;
     /// # use rand_core::OsRng;
+    /// # use digest::consts::U32;
     /// # fn main() -> Result<(), AtmsError> {
     /// let n = 10; // number of parties
     /// let subset_is = [1, 2, 3, 5, 6, 7, 9];
@@ -489,7 +484,7 @@ where
     ///     sk_pks.push((sk, pk));
     /// }
     ///
-    /// let atms_registration = Registration::<Blake2b>::new(&keyspop)?;
+    /// let atms_registration = Registration::<Blake2b<U32>>::new(&keyspop)?;
     ///
     /// for i in 0..n {
     ///     let (sk, pk) = &sk_pks[i];
@@ -634,6 +629,7 @@ where
             keys.push(pk);
         }
 
+        // todo: have a different serialisation function of Paths such that only the hashes and position are serialised (and not the height of the tree given that it is redundant)
         let proof = if non_signers > 0 {
             let proof_offset = offset + 96 + non_signers * 48;
             #[cfg(feature = "efficient-mtproof")]
@@ -667,6 +663,7 @@ mod tests {
     use crate::multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey};
     use blake2::Blake2b;
 
+    use digest::consts::U32;
     use proptest::prelude::*;
     use rand::seq::SliceRandom;
     use rand_chacha::ChaCha20Rng;
@@ -691,7 +688,7 @@ mod tests {
                 pkpops.push(pkpop);
                 sk_pks.push((sk, pk));
             }
-            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+            let registration = Registration::<Blake2b<U32>>::new(&pkpops).expect("Registration should pass with valid keys");
 
             for (sk, pk) in sk_pks {
                 let sig = sk.sign(&msg);
@@ -727,7 +724,7 @@ mod tests {
             }
             pks.sort();
 
-            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+            let registration = Registration::<Blake2b<U32>>::new(&pkpops).expect("Registration should pass with valid keys");
 
             for (index, pk) in pks.iter().enumerate() {
                 let indices = registration.get_index(pk);
@@ -760,7 +757,7 @@ mod tests {
                 pkpops.push(PublicKeyPoP::from(&sk_pks[i % num_pks].0));
             }
 
-            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+            let registration = Registration::<Blake2b<U32>>::new(&pkpops).expect("Registration should pass with valid keys");
 
             for (sk, pk) in sk_pks {
                 let sig = sk.sign(&msg);
@@ -791,7 +788,7 @@ mod tests {
                 pkpops.push(pkpop);
                 sk_pks.push((sk, pk));
             }
-            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+            let registration = Registration::<Blake2b<U32>>::new(&pkpops).expect("Registration should pass with valid keys");
 
             for i in 0..num_sigs {
                 let (sk, pk) = &sk_pks[i % num_pks];
@@ -804,7 +801,7 @@ mod tests {
             }
             let mu = AggregateSig::new(&registration, &sigs, &msg).expect("Signatures should be valid");
             let bytes = mu.to_bytes();
-            let recovered = AggregateSig::<Blake2b>::from_bytes(&bytes).unwrap();
+            let recovered = AggregateSig::<Blake2b<U32>>::from_bytes(&bytes).unwrap();
             match recovered.verify(&msg, &registration.to_avk(), num_pks - (num_pks - 1) / 3) {
                 Ok(_) => {
                     assert!(num_sigs >= num_pks - (num_pks - 1) / 3);
@@ -835,7 +832,7 @@ mod tests {
                 pkpops.push(pkpop);
                 sk_pks.push((sk, pk));
             }
-            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+            let registration = Registration::<Blake2b<U32>>::new(&pkpops).expect("Registration should pass with valid keys");
 
             for (sk, pk) in sk_pks {
                 let sig = sk.sign(&msg);
@@ -862,9 +859,9 @@ mod tests {
                 let pkpop = PublicKeyPoP::from(&sk);
                 pkpops.push(pkpop);
             }
-            let registration = Registration::<Blake2b>::new(&pkpops).expect("Registration should pass with valid keys");
+            let registration = Registration::<Blake2b<U32>>::new(&pkpops).expect("Registration should pass with valid keys");
             let bytes = registration.to_bytes();
-            let test = Registration::<Blake2b>::from_bytes(&bytes).unwrap();
+            let test = Registration::<Blake2b<U32>>::from_bytes(&bytes).unwrap();
             assert!(test.to_avk().check(&pkpops).is_ok());
         }
 
@@ -914,7 +911,7 @@ mod tests {
                 pks.push(pk);
             }
 
-            let registration = Registration::<Blake2b>::new(&pks).expect("Valid keys should have a valid registration.");
+            let registration = Registration::<Blake2b<U32>>::new(&pks).expect("Valid keys should have a valid registration.");
             assert!(registration.to_avk().check(&pks).is_ok());
         }
 
@@ -932,9 +929,9 @@ mod tests {
                 pks.push(pk);
             }
 
-            let avk = Registration::<Blake2b>::new(&pks).expect("Valid keys should have a valid registration.").to_avk();
+            let avk = Registration::<Blake2b<U32>>::new(&pks).expect("Valid keys should have a valid registration.").to_avk();
             let bytes = avk.to_bytes();
-            let test = Avk::<Blake2b>::from_bytes(&bytes).unwrap();
+            let test = Avk::<Blake2b<U32>>::from_bytes(&bytes).unwrap();
             assert!(test.check(&pks).is_ok());
         }
 
@@ -952,9 +949,9 @@ mod tests {
                 pks.push(pk);
             }
 
-            let registration = Registration::<Blake2b>::new(&pks).expect("Valid keys should have a valid registration.");
+            let registration = Registration::<Blake2b<U32>>::new(&pks).expect("Valid keys should have a valid registration.");
             pks.shuffle(&mut rng);
-            let shuffled_reg = Registration::<Blake2b>::new(&pks).expect("Shufled keys should have a correct registration.");
+            let shuffled_reg = Registration::<Blake2b<U32>>::new(&pks).expect("Shufled keys should have a correct registration.");
             assert_eq!(registration.to_avk(), shuffled_reg.to_avk());
             assert!(registration.to_avk().check(&pks).is_ok());
         }
@@ -985,7 +982,7 @@ mod tests {
                 keyspop[0] = false_pkpop;
             }
 
-            match Registration::<Blake2b>::new(&keyspop) {
+            match Registration::<Blake2b<U32>>::new(&keyspop) {
                 Ok(_) => {
                     assert_eq!(0, invalid_pop);
                     assert_eq!(0, repeated_reg);
@@ -1024,7 +1021,7 @@ mod tests {
                 sk_pks.push((sk, pk));
             }
 
-            let registration = Registration::<Blake2b>::new(&pkpops).expect("Re\
+            let registration = Registration::<Blake2b<U32>>::new(&pkpops).expect("Re\
             gistration should pass with valid keys");
 
             for (sk, pk) in sk_pks {
