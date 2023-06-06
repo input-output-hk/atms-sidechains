@@ -1645,8 +1645,8 @@
     </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>aggregate_sig_bytes = Vec::new();
         <span class="kw">let </span>nr_non_signers = u32::try_from(<span class="self">self</span>.keys.len()).expect(<span class="string">&quot;Length must fit in u32&quot;</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;Num of non signers: {:?}&quot;</span>, nr_non_signers);
-        aggregate_sig_bytes.extend_from_slice(<span class="kw-2">&amp;</span>nr_non_signers.to_be_bytes());
+        <span class="comment">// println!(&quot;Num of non signers: {:?}&quot;, nr_non_signers);
+        </span>aggregate_sig_bytes.extend_from_slice(<span class="kw-2">&amp;</span>nr_non_signers.to_be_bytes());
 
         <span class="attr">#[cfg(not(feature = <span class="string">&quot;efficient-mtproof&quot;</span>))]
         </span><span class="kw">if </span>nr_non_signers &gt; <span class="number">0 </span>{
