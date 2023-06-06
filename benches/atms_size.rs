@@ -10,9 +10,13 @@ const COMMITEE_SIZES: [usize; 8] = [100, 200, 300, 400, 500, 600, 700, 800];
 
 fn main() {
     let msg = b"ATMS size benchmarks";
-    println!("+{a:->width$}+", a="", width=65);
-    println!("|{title: <width$}|", title=" Size benchmarks for ATMS: ", width=65);
-    println!("+{a:->width$}+", a="", width=65);
+    println!("+{a:->width$}+", a = "", width = 65);
+    println!(
+        "|{title: <width$}|",
+        title = " Size benchmarks for ATMS: ",
+        width = 65
+    );
+    println!("+{a:->width$}+", a = "", width = 65);
     println!("| Committee Size | Non-signers | Cert size | Estimated CPU budget | ");
     //                16              13           11                22
 
@@ -24,7 +28,7 @@ fn main() {
     // println!("{number:0>width$}", number=1, width=5);
 
     for num_signers in COMMITEE_SIZES {
-        print!("| {num_signers: >width$} |", width=14);
+        print!("| {num_signers: >width$} |", width = 14);
         let num_sigs = (2 * num_signers) / 3;
 
         let mut rng = ChaCha20Rng::from_seed([0u8; 32]);
@@ -38,7 +42,8 @@ fn main() {
             pkpops.push(pkpop);
             sk_pks.push((sk, pk));
         }
-        let registration = Registration::<Blake2b<U32>>::new(&pkpops).expect("Registration should pass with valid keys");
+        let registration = Registration::<Blake2b<U32>>::new(&pkpops)
+            .expect("Registration should pass with valid keys");
 
         let signing_parties = (0..num_signers).choose_multiple(&mut rng, num_sigs);
         for index in signing_parties {
@@ -57,8 +62,16 @@ fn main() {
         assert!(mu.verify(msg, &registration.to_avk(), num_sigs).is_ok());
 
         // println!("Number non-sig keys: {:?}", mu.keys.len());
-        print!(" {non_signers: >width$} |", non_signers=mu.keys.len(), width=11);
-        print!(" {cert_size: >width$} |", cert_size=bytes.len(), width=9);
+        print!(
+            " {non_signers: >width$} |",
+            non_signers = mu.keys.len(),
+            width = 11
+        );
+        print!(
+            " {cert_size: >width$} |",
+            cert_size = bytes.len(),
+            width = 9
+        );
 
         // We compute the estimated CPU budget as follows:
         // - Deserialise `non_signers` keys (in G1) (16511372 each)
@@ -71,11 +84,22 @@ fn main() {
         // Total budget is 10_000_000_000 units
         let non_signers = mu.keys.len();
         let height_tree = (num_signers as f64).log2().ceil() as usize;
-        let estimated_budget = non_signers * 16511372 + (non_signers + 1) * 1046420 + height_tree * non_signers * 521475 + 2 * 402099373 + 388656972;
+        let estimated_budget = non_signers * 16511372
+            + (non_signers + 1) * 1046420
+            + height_tree * non_signers * 521475
+            + 2 * 402099373
+            + 388656972;
 
         let used_budget = (estimated_budget * 100) / 10_000_000_000;
-        println!(" {used_budget: >width$}% |", width=19);
+        println!(" {used_budget: >width$}% |", width = 19);
 
-        println!("+{a:->width1$}|{a:->width2$}|{a:->width3$}|{a:->width4$}+", a="", width1=16, width2=13, width3=11, width4=22);
+        println!(
+            "+{a:->width1$}|{a:->width2$}|{a:->width3$}|{a:->width4$}+",
+            a = "",
+            width1 = 16,
+            width2 = 13,
+            width3 = 11,
+            width4 = 22
+        );
     }
 }

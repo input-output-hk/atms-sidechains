@@ -78,7 +78,10 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN || github.token }}
           publish_dir: target/doc
-
+  c-tests:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
       - name: Set up Clang
         uses: egor-tensin/setup-clang@v1
         with:

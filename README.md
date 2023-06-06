@@ -55,7 +55,7 @@ cargo test --release
 For the c-tests, we first build the test executable. First enter the `c-tests` folder, and then run:
 
 ``` sh
-clang -x c++ tests.c stms.c atms.c -g -o tests -L ../target/release -lmithril -lstdc++ -lgtest -lgtest_main
+clang -x c++ tests.c serialisation.c multi_sig.c atms.c -g -o tests -L ../target/release -latms -lstdc++ -lgtest -lgtest_main
 ```
 
 **NOTE**: Do not use g++, it does compile but leads to segfault when running the test.
@@ -66,24 +66,24 @@ To execute the tests:
 ./tests
 [==========] Running 5 tests from 2 test suites.
 [----------] Global test environment set-up.
-[----------] 3 tests from atms
-[ RUN      ] atms.produceAndVerifyAggregateSignature
-[       OK ] atms.produceAndVerifyAggregateSignature (27 ms)
-[ RUN      ] atms.testingErrors
-[       OK ] atms.testingErrors (29 ms)
-[ RUN      ] atms.serdeAtms
-[       OK ] atms.serdeAtms (14 ms)
-[----------] 3 tests from atms (71 ms total)
-
 [----------] 2 tests from multisig
-[ RUN      ] multisig.produceAndVerifyMultiSignature
-[       OK ] multisig.produceAndVerifyMultiSignature (2 ms)
 [ RUN      ] multisig.serdeMultiSignature
-[       OK ] multisig.serdeMultiSignature (2 ms)
-[----------] 2 tests from multisig (4 ms total)
+[       OK ] multisig.serdeMultiSignature (4 ms)
+[ RUN      ] multisig.produceAndVerifyMultiSignature
+[       OK ] multisig.produceAndVerifyMultiSignature (3 ms)
+[----------] 2 tests from multisig (8 ms total)
+
+[----------] 3 tests from atms
+[ RUN      ] atms.serdeAtms
+[       OK ] atms.serdeAtms (17 ms)
+[ RUN      ] atms.produceAndVerifyAggregateSignature
+[       OK ] atms.produceAndVerifyAggregateSignature (16 ms)
+[ RUN      ] atms.testingErrors
+[       OK ] atms.testingErrors (25 ms)
+[----------] 3 tests from atms (59 ms total)
 
 [----------] Global test environment tear-down
-[==========] 5 tests from 2 test suites ran. (76 ms total)
+[==========] 5 tests from 2 test suites ran. (68 ms total)
 [  PASSED  ] 5 tests.
 ```
 
