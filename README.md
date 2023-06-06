@@ -86,3 +86,32 @@ To execute the tests:
 [==========] 5 tests from 2 test suites ran. (76 ms total)
 [  PASSED  ] 5 tests.
 ```
+
+## Size benchmarks (and plutus estimates)
+These estimates are run with the efficient MT proof, and the estimates for plutus script
+functions that we got from [this](https://hackmd.io/X80zXoxWQrqSLaO0nizjaA) document. One
+can adapt the sizes of the committee and non-signers in the benchmark [file](./benches/atms_size.rs),
+and run the experiments with `cargo bench`.
+
+```
++-----------------------------------------------------------------+
+| Size benchmarks for ATMS:                                       |
++-----------------------------------------------------------------+
+| Committee Size | Non-signers | Cert size | Estimated CPU budget | 
+|            100 |          34 |      3284 |                  19% |
++----------------|-------------|-----------|----------------------+
+|            200 |          67 |      6280 |                  26% |
++----------------|-------------|-----------|----------------------+
+|            300 |         100 |      8988 |                  34% |
++----------------|-------------|-----------|----------------------+
+|            400 |         134 |     12132 |                  41% |
++----------------|-------------|-----------|----------------------+
+|            500 |         167 |     14712 |                  49% |
++----------------|-------------|-----------|----------------------+
+|            600 |         200 |     18796 |                  57% |
++----------------|-------------|-----------|----------------------+
+|            700 |         234 |     21460 |                  65% |
++----------------|-------------|-----------|----------------------+
+|            800 |         267 |     24104 |                  72% |
++----------------|-------------|-----------|----------------------+
+```

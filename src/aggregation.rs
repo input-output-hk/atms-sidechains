@@ -563,7 +563,7 @@ where
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut aggregate_sig_bytes = Vec::new();
         let nr_non_signers = u32::try_from(self.keys.len()).expect("Length must fit in u32");
-        println!("Num of non signers: {:?}", nr_non_signers);
+        // println!("Num of non signers: {:?}", nr_non_signers);
         aggregate_sig_bytes.extend_from_slice(&nr_non_signers.to_be_bytes());
 
         #[cfg(not(feature = "efficient-mtproof"))]

@@ -35,3 +35,7 @@ rand = "0.8"
 default = ["efficient-mtproof"]
 efficient-mtproof = []
 raw_signature = []
+
+[[bench]]
+name = "atms_size"
+harness = false
