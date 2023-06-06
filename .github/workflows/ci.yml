@@ -87,7 +87,6 @@ jobs:
         with:
           version: latest
           platform: x64
-          $HOME/. cargo/bin
       - name: Cache cbindgen installation
         uses: actions/cache@v3
         with:
