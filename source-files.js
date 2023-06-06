@@ -1,10 +1,11 @@
 var sourcesIndex = JSON.parse('{\
 "atms":["",[],["aggregation.rs","c_api.rs","error.rs","lib.rs","merkle_tree.rs","multi_sig.rs"]],\
-"blake2":["",[["simd",[],["simd_opt.rs","simdint.rs","simdop.rs","simdty.rs"]]],["as_bytes.rs","blake2.rs","blake2b.rs","blake2s.rs","consts.rs","lib.rs","simd.rs"]],\
+"blake2":["",[["simd",[],["simd_opt.rs","simdint.rs","simdop.rs","simdty.rs"]]],["as_bytes.rs","consts.rs","lib.rs","macros.rs","simd.rs"]],\
+"block_buffer":["",[],["lib.rs","sealed.rs"]],\
 "blst":["",[],["bindings.rs","lib.rs"]],\
 "cfg_if":["",[],["lib.rs"]],\
-"crypto_mac":["",[],["errors.rs","lib.rs"]],\
-"digest":["",[],["digest.rs","dyn_digest.rs","errors.rs","fixed.rs","lib.rs","variable.rs","xof.rs"]],\
+"crypto_common":["",[],["lib.rs"]],\
+"digest":["",[["core_api",[],["ct_variable.rs","rt_variable.rs","wrapper.rs","xof_reader.rs"]]],["core_api.rs","digest.rs","lib.rs","mac.rs"]],\
 "generic_array":["",[],["arr.rs","functional.rs","hex.rs","impls.rs","iter.rs","lib.rs","sequence.rs"]],\
 "getrandom":["",[],["error.rs","error_impls.rs","lib.rs","linux_android.rs","use_file.rs","util.rs","util_libc.rs"]],\
 "libc":["",[["unix",[["linux_like",[["linux",[["arch",[["generic",[],["mod.rs"]]],["mod.rs"]],["gnu",[["b64",[["x86_64",[],["align.rs","mod.rs","not_x32.rs"]]],["mod.rs"]]],["align.rs","mod.rs"]]],["align.rs","mod.rs","non_exhaustive.rs"]]],["mod.rs"]]],["align.rs","mod.rs"]]],["fixed_width_ints.rs","lib.rs","macros.rs"]],\
@@ -13,7 +14,6 @@ var sourcesIndex = JSON.parse('{\
 "num_cpus":["",[],["lib.rs","linux.rs"]],\
 "num_integer":["",[],["average.rs","lib.rs","roots.rs"]],\
 "num_traits":["",[["ops",[],["checked.rs","euclid.rs","inv.rs","mod.rs","mul_add.rs","overflowing.rs","saturating.rs","wrapping.rs"]]],["bounds.rs","cast.rs","float.rs","identities.rs","int.rs","lib.rs","macros.rs","pow.rs","real.rs","sign.rs"]],\
-"opaque_debug":["",[],["lib.rs"]],\
 "paste":["",[],["attr.rs","error.rs","lib.rs","segment.rs"]],\
 "proc_macro2":["",[],["detection.rs","extra.rs","fallback.rs","lib.rs","marker.rs","parse.rs","rcvec.rs","wrapper.rs"]],\
 "quote":["",[],["ext.rs","format.rs","ident_fragment.rs","lib.rs","runtime.rs","spanned.rs","to_tokens.rs"]],\

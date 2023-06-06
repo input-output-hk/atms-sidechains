@@ -584,6 +584,42 @@
 <a href="#584" id="584">584</a>
 <a href="#585" id="585">585</a>
 <a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Multi signature module, which contains the wrappers around [blst](https://github.com/supranational/blst)
 //! to build Boldryeva multi signature scheme.
 //!
@@ -611,7 +647,7 @@
     AggregatePublicKey, AggregateSignature, PublicKey <span class="kw">as </span>BlstPk, SecretKey <span class="kw">as </span>BlstSk,
     Signature <span class="kw">as </span>BlstSig,
 };
-<span class="kw">use </span>blst::BLST_ERROR;
+<span class="kw">use </span>blst::{blst_p2, BLST_ERROR};
 <span class="kw">use </span>rand_core::{CryptoRng, RngCore};
 <span class="kw">use </span>std::{
     cmp::Ordering,
@@ -655,8 +691,44 @@
 
     <span class="doccomment">/// Produce a partial signature for message `msg`. The signature, $\sigma$ is computed by hashing
     /// `msg` into $\mathbb{G}_2$ and multiplying by the secret key,  $\sigma = sk * H_2(msg)$.
+    </span><span class="attr">#[cfg(not(feature = <span class="string">&quot;raw_signature&quot;</span>))]
     </span><span class="kw">pub fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Signature {
         Signature(<span class="self">self</span>.<span class="number">0</span>.sign(msg, <span class="kw-2">&amp;</span>[], <span class="kw-2">&amp;</span>[]))
+    }
+
+    <span class="attr">#[cfg(feature = <span class="string">&quot;raw_signature&quot;</span>)]
+    </span><span class="kw">pub fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Signature {
+        <span class="kw">use </span>blst::{
+            blst_hash_to_g2, blst_lendian_from_scalar, blst_p2_affine, blst_p2_generator,
+            blst_p2_mult, blst_p2_to_affine, blst_scalar,
+        };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>sig_aff = blst_p2_affine::default();
+        <span class="kw">unsafe </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>sk_bytes = [<span class="number">0u8</span>; <span class="number">32</span>];
+            <span class="kw">let </span>sk_scalar = std::mem::transmute::&lt;<span class="kw-2">&amp;</span>BlstSk, <span class="kw-2">&amp;</span>blst_scalar&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>);
+            blst_lendian_from_scalar(sk_bytes.as_mut_ptr(), sk_scalar);
+
+            <span class="kw">let </span>g2_gen = blst_p2_generator();
+            <span class="kw">let </span><span class="kw-2">mut </span>hashed_msg = blst_p2::default();
+            <span class="kw">let </span><span class="kw-2">mut </span>sig_pt = blst_p2::default();
+            blst_hash_to_g2(
+                <span class="kw-2">&amp;mut </span>hashed_msg,
+                msg.as_ptr(),
+                msg.len(),
+                [].as_ptr(),
+                <span class="number">0</span>,
+                [].as_ptr(),
+                <span class="number">0</span>,
+            );
+            blst_p2_mult(<span class="kw-2">&amp;mut </span>sig_pt, g2_gen, sk_bytes.as_ptr(), <span class="number">32</span>);
+
+            blst_p2_to_affine(<span class="kw-2">&amp;mut </span>sig_aff, <span class="kw-2">&amp;</span>sig_pt);
+        }
+
+        <span class="kw">let </span>sig = <span class="kw">unsafe </span>{ std::mem::transmute::&lt;<span class="kw-2">&amp;</span>blst_p2_affine, <span class="kw-2">&amp;</span>BlstSig&gt;(<span class="kw-2">&amp;</span>sig_aff) };
+
+        Signature(<span class="kw-2">*</span>sig)
     }
 
     <span class="doccomment">/// Convert the secret key into byte string.

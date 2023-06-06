@@ -1,3 +1,0 @@
-(function() {var implementors = {
-"blake2":[["impl <a class=\"trait\" href=\"digest/variable/trait.VariableOutputDirty.html\" title=\"trait digest::variable::VariableOutputDirty\">VariableOutputDirty</a> for <a class=\"struct\" href=\"blake2/struct.VarBlake2b.html\" title=\"struct blake2::VarBlake2b\">VarBlake2b</a>"],["impl <a class=\"trait\" href=\"digest/variable/trait.VariableOutputDirty.html\" title=\"trait digest::variable::VariableOutputDirty\">VariableOutputDirty</a> for <a class=\"struct\" href=\"blake2/struct.VarBlake2s.html\" title=\"struct blake2::VarBlake2s\">VarBlake2s</a>"]]
-};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

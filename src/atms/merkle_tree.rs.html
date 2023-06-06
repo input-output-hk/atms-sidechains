@@ -707,6 +707,14 @@
 <a href="#707" id="707">707</a>
 <a href="#708" id="708">708</a>
 <a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Merkle tree module, exposing several ops on Merkle Trees.
 </span><span class="kw">use </span><span class="kw">crate</span>::error::MerkleTreeError;
 <span class="kw">use </span>digest::{Digest, FixedOutput};
@@ -747,7 +755,8 @@
     /// * Index of element
     /// * $n$ hash outputs
     </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(<span class="number">4 </span>+ <span class="number">4 </span>+ <span class="self">self</span>.values.len() * D::output_size());
+        <span class="kw">let </span><span class="kw-2">mut </span>result =
+            Vec::with_capacity(<span class="number">4 </span>+ <span class="number">4 </span>+ <span class="self">self</span>.values.len() * &lt;D <span class="kw">as </span>Digest&gt;::output_size());
         <span class="kw">let </span>len = u32::try_from(<span class="self">self</span>.values.len()).expect(<span class="string">&quot;Length must fit in u32&quot;</span>);
         result.extend_from_slice(<span class="kw-2">&amp;</span>len.to_be_bytes());
         result.extend_from_slice(
@@ -771,7 +780,7 @@
         u32_bytes.copy_from_slice(<span class="kw-2">&amp;</span>bytes[<span class="number">4</span>..<span class="number">8</span>]);
         <span class="kw">let </span>index = usize::try_from(u32::from_be_bytes(u32_bytes))
             .expect(<span class="string">&quot;Library should be built in 32 bit targets or higher&quot;</span>);
-        <span class="kw">let </span>node_size = D::output_size();
+        <span class="kw">let </span>node_size = &lt;D <span class="kw">as </span>Digest&gt;::output_size();
 
         <span class="kw">let </span><span class="kw-2">mut </span>vec_nodes = Vec::with_capacity(size);
         <span class="kw">for </span>slice <span class="kw">in </span>bytes[<span class="number">8</span>..<span class="number">8 </span>+ node_size * size].chunks(node_size) {
@@ -797,7 +806,7 @@
     /// * $n$ hash outputs
     </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(
-            <span class="number">4 </span>+ <span class="number">4 </span>+ <span class="self">self</span>.indices.len() * <span class="number">4 </span>+ <span class="self">self</span>.values.len() * D::output_size(),
+            <span class="number">4 </span>+ <span class="number">4 </span>+ <span class="self">self</span>.indices.len() * <span class="number">4 </span>+ <span class="self">self</span>.values.len() * &lt;D <span class="kw">as </span>Digest&gt;::output_size(),
         );
         <span class="kw">let </span>len = u32::try_from(<span class="self">self</span>.values.len()).expect(<span class="string">&quot;Length must fit in u32&quot;</span>);
         <span class="kw">let </span>size_batch = u32::try_from(<span class="self">self</span>.indices.len()).expect(<span class="string">&quot;Length must fit in u32&quot;</span>);
@@ -837,7 +846,7 @@
             );
         }
 
-        <span class="kw">let </span>node_size = D::output_size();
+        <span class="kw">let </span>node_size = &lt;D <span class="kw">as </span>Digest&gt;::output_size();
         <span class="kw">let </span><span class="kw-2">mut </span>vec_nodes = Vec::with_capacity(len);
         <span class="kw">for </span>slice <span class="kw">in </span>bytes[<span class="number">8 </span>+ <span class="number">4 </span>* size_batch..].chunks(node_size) {
             vec_nodes.push(slice.to_vec());
@@ -874,6 +883,7 @@
     /// # use rand_core::{OsRng, RngCore};
     /// # use atms::merkle_tree::MerkleTree;
     /// # use blake2::Blake2b;
+    /// # use digest::consts::U32;
     /// # fn main() {
     /// let mut rng = OsRng::default();
     /// // We generate the keys.
@@ -884,7 +894,7 @@
     ///     keys.push(leaf.to_vec());
     /// }
     /// // Compute the Merkle tree of the keys.
-    /// let mt = MerkleTree::&lt;Blake2b&gt;::create(&amp;keys);
+    /// let mt = MerkleTree::&lt;Blake2b&lt;U32&gt;&gt;::create(&amp;keys);
     /// // Compute the path of key in position 3.
     /// let path = mt.get_path(3);
     /// // Verify the proof of membership with respect to the merkle commitment.
@@ -920,6 +930,7 @@
     /// # use rand_core::{OsRng, RngCore};
     /// # use atms::merkle_tree::MerkleTree;
     /// # use blake2::Blake2b;
+    /// # use digest::consts::U32;
     /// # fn main() {
     /// let mut rng = OsRng::default();
     /// // We generate the keys.
@@ -930,7 +941,7 @@
     ///     keys.push(leaf.to_vec());
     /// }
     /// // Compute the Merkle tree of the keys.
-    /// let mt = MerkleTree::&lt;Blake2b&gt;::create(&amp;keys);
+    /// let mt = MerkleTree::&lt;Blake2b&lt;U32&gt;&gt;::create(&amp;keys);
     /// // Compute the path of keys in position [1, 3, 7, 11].
     /// let indices = vec![1, 3, 7, 11];
     /// let values = indices.iter().map(|i| keys[*i].clone()).collect::&lt;Vec&lt;_&gt;&gt;();
@@ -1033,11 +1044,11 @@
     <span class="doccomment">/// Convert a `MerkleTreeCommitment` to a byte array of $S + 8$ bytes, where $S$ is the output
     /// size of the hash function.
     /// # Layout
-    /// The layout of `MerkleTreeCommitment` is:
+    ///
     /// * Number of committed leaves,
     /// * Merkle root
     </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(D::output_size() + <span class="number">8</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(&lt;D <span class="kw">as </span>Digest&gt;::output_size() + <span class="number">8</span>);
         result.extend_from_slice(
             <span class="kw-2">&amp;</span>u32::try_from(<span class="self">self</span>.nr_leaves)
                 .expect(<span class="string">&quot;Index must fit in u32&quot;</span>)
@@ -1053,7 +1064,7 @@
         usize_bytes.copy_from_slice(<span class="kw-2">&amp;</span>bytes[..<span class="number">4</span>]);
         <span class="kw">let </span>nr_leaves = usize::try_from(u32::from_be_bytes(usize_bytes))
             .expect(<span class="string">&quot;Library should be built in 32 bit targets or higher&quot;</span>);
-        <span class="kw">if </span>bytes[<span class="number">4</span>..].len() == D::output_size() {
+        <span class="kw">if </span>bytes[<span class="number">4</span>..].len() == &lt;D <span class="kw">as </span>Digest&gt;::output_size() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">Self </span>{
                 value: bytes[<span class="number">4</span>..].to_vec(),
                 nr_leaves,
@@ -1242,7 +1253,7 @@
     /// * Number of leaves committed in the Merkle Tree
     /// * All nodes of the merkle tree (starting with the root)
     </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(<span class="number">4 </span>+ <span class="self">self</span>.nodes.len() * D::output_size());
+        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(<span class="number">4 </span>+ <span class="self">self</span>.nodes.len() * &lt;D <span class="kw">as </span>Digest&gt;::output_size());
         result.extend_from_slice(
             <span class="kw-2">&amp;</span>u32::try_from(<span class="self">self</span>.n)
                 .expect(<span class="string">&quot;Length must fit in u32&quot;</span>)
@@ -1263,7 +1274,11 @@
         <span class="kw">let </span>num_nodes = n + n - <span class="number">1</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>nodes = Vec::with_capacity(num_nodes);
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..num_nodes {
-            nodes.push(bytes[<span class="number">4 </span>+ i * D::output_size()..<span class="number">4 </span>+ (i + <span class="number">1</span>) * D::output_size()].to_vec());
+            nodes.push(
+                bytes[<span class="number">4 </span>+ i * &lt;D <span class="kw">as </span>Digest&gt;::output_size()
+                    ..<span class="number">4 </span>+ (i + <span class="number">1</span>) * &lt;D <span class="kw">as </span>Digest&gt;::output_size()]
+                    .to_vec(),
+            );
         }
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             nodes,
@@ -1311,13 +1326,14 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>blake2::Blake2b;
+    <span class="kw">use </span>digest::consts::U32;
     <span class="kw">use </span>proptest::collection::{hash_set, vec};
     <span class="kw">use </span>proptest::prelude::<span class="kw-2">*</span>;
 
     <span class="macro">prop_compose! </span>{
         <span class="kw">fn </span>arb_tree(max_size: u32)
-                   (v <span class="kw">in </span>vec(vec(any::&lt;u8&gt;(), <span class="number">2</span>..<span class="number">16</span>), <span class="number">2</span>..(max_size <span class="kw">as </span>usize))) -&gt; (MerkleTree&lt;blake2::Blake2b&gt;, Vec&lt;Vec&lt;u8&gt;&gt;) {
-             (MerkleTree::&lt;blake2::Blake2b&gt;::create(<span class="kw-2">&amp;</span>v), v)
+                   (v <span class="kw">in </span>vec(vec(any::&lt;u8&gt;(), <span class="number">2</span>..<span class="number">16</span>), <span class="number">2</span>..(max_size <span class="kw">as </span>usize))) -&gt; (MerkleTree&lt;blake2::Blake2b&lt;U32&gt;&gt;, Vec&lt;Vec&lt;u8&gt;&gt;) {
+             (MerkleTree::&lt;blake2::Blake2b&lt;U32&gt;&gt;::create(<span class="kw-2">&amp;</span>v), v)
         }
     }
 
@@ -1356,15 +1372,15 @@
                 <span class="macro">assert!</span>(t.to_commitment().check(<span class="kw-2">&amp;</span>values[i], <span class="kw-2">&amp;</span>pf).is_ok());
 
                 <span class="kw">let </span>bytes = pf.to_bytes();
-                <span class="kw">let </span>test2 = Path::&lt;Blake2b&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
+                <span class="kw">let </span>test2 = Path::&lt;Blake2b&lt;U32&gt;&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
                 <span class="macro">assert!</span>(t.to_commitment().check(<span class="kw-2">&amp;</span>values[i], <span class="kw-2">&amp;</span>test2).is_ok());
 
                 <span class="kw">let </span>bytes = t.to_bytes();
-                <span class="kw">let </span>test = MerkleTree::&lt;Blake2b&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
+                <span class="kw">let </span>test = MerkleTree::&lt;Blake2b&lt;U32&gt;&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
                 <span class="macro">assert!</span>(test.to_commitment().check(<span class="kw-2">&amp;</span>values[i], <span class="kw-2">&amp;</span>test2).is_ok());
 
                 <span class="kw">let </span>bytes = t.to_commitment().to_bytes();
-                <span class="kw">let </span>test = MerkleTreeCommitment::&lt;Blake2b&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
+                <span class="kw">let </span>test = MerkleTreeCommitment::&lt;Blake2b&lt;U32&gt;&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
                 <span class="macro">assert!</span>(test.check(<span class="kw-2">&amp;</span>values[i], <span class="kw-2">&amp;</span>test2).is_ok());
             })
         }
@@ -1409,9 +1425,9 @@
             i <span class="kw">in </span>any::&lt;usize&gt;(),
             (values, proof) <span class="kw">in </span>values_with_invalid_proof(<span class="number">10</span>)
         ) {
-            <span class="kw">let </span>t = MerkleTree::&lt;blake2::Blake2b&gt;::create(<span class="kw-2">&amp;</span>values[<span class="number">1</span>..]);
+            <span class="kw">let </span>t = MerkleTree::&lt;blake2::Blake2b&lt;U32&gt;&gt;::create(<span class="kw-2">&amp;</span>values[<span class="number">1</span>..]);
             <span class="kw">let </span>idx = i % (values.len() - <span class="number">1</span>);
-            <span class="kw">let </span>path = Path{values: proof, index: idx, hasher: PhantomData::&lt;Blake2b&gt;::default()};
+            <span class="kw">let </span>path = Path{values: proof, index: idx, hasher: PhantomData::&lt;Blake2b&lt;U32&gt;&gt;::default()};
             <span class="macro">assert!</span>(t.to_commitment().check(<span class="kw-2">&amp;</span>values[<span class="number">0</span>], <span class="kw-2">&amp;</span>path).is_err());
         }
     }

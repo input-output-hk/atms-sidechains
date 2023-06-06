@@ -1017,6 +1017,69 @@
 <a href="#1017" id="1017">1017</a>
 <a href="#1018" id="1018">1018</a>
 <a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a>
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Aggregation module, which contains the mechanisms to compute and verify the
 //! aggregate signatures and keys of an ATMS signature protocol.
 //!
@@ -1037,14 +1100,18 @@
 
 </span><span class="attr">#![allow(clippy::type_complexity)]
 
-</span><span class="kw">use crate</span>::{
+#[cfg(feature = <span class="string">&quot;efficient-mtproof&quot;</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::merkle_tree::BatchPath;
+<span class="attr">#[cfg(not(feature = <span class="string">&quot;efficient-mtproof&quot;</span>))]
+</span><span class="kw">use </span><span class="kw">crate</span>::merkle_tree::Path;
+<span class="kw">use crate</span>::{
     error::{blst_err_to_atms, AtmsError},
-    merkle_tree::{BatchPath, MerkleTree, MerkleTreeCommitment},
+    merkle_tree::{MerkleTree, MerkleTreeCommitment},
     multi_sig::{PublicKey, PublicKeyPoP, Signature},
 };
 
 <span class="kw">use </span>blake2::Digest;
-<span class="kw">use </span>digest::FixedOutput;
+<span class="kw">use </span>digest::{consts::U32, FixedOutput};
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::{
     collections::{HashMap, HashSet},
@@ -1103,6 +1170,7 @@
     /// # use atms::AtmsError;
     /// # use blake2::Blake2b;
     /// # use rand_core::OsRng;
+    /// # use digest::consts::U32;
     /// # fn main() -&gt; Result&lt;(), AtmsError&gt; {
     /// let n = 10; // nr of eligible signers
     /// let threshold: usize = n - ((n - 1) / 3);
@@ -1115,7 +1183,7 @@
     ///     keyspop.push(pkpop);
     /// }
     ///
-    /// let atms_registration = Registration::&lt;Blake2b&gt;::new(&amp;keyspop)?;
+    /// let atms_registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(&amp;keyspop)?;
     /// assert!(atms_registration.to_avk().check(&amp;keyspop).is_ok());
     /// # Ok(())
     /// # }
@@ -1132,18 +1200,12 @@
     /// hash function.
     ///
     /// # Layout
-    /// The layout of an `Avk` is
+    ///
     /// * Aggregate key
-    /// * Nr of parties
     /// * Merkle tree commitment
     </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(<span class="number">48 </span>+ <span class="number">4 </span>+ H::output_size());
+        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(<span class="number">48 </span>+ <span class="number">4 </span>+ &lt;H <span class="kw">as </span>Digest&gt;::output_size());
         result.extend_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.aggregate_key.to_bytes());
-        result.extend_from_slice(
-            <span class="kw-2">&amp;</span>u32::try_from(<span class="self">self</span>.nr_parties)
-                .expect(<span class="string">&quot;Length must fit in u32&quot;</span>)
-                .to_be_bytes(),
-        );
         result.extend_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.mt_commitment.to_bytes());
         result
     }
@@ -1155,17 +1217,12 @@
     /// # Error
     /// Function fails if the byte representation corresponds to an invalid Avk
     </span><span class="kw">pub fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, AtmsError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>nr_bytes = [<span class="number">0u8</span>; <span class="number">4</span>];
-        nr_bytes.copy_from_slice(<span class="kw-2">&amp;</span>bytes[<span class="number">48</span>..<span class="number">52</span>]);
-
         <span class="kw">let </span>aggregate_key = PublicKey::from_bytes(bytes)<span class="question-mark">?</span>;
-        <span class="kw">let </span>nr_parties = usize::try_from(u32::from_be_bytes(nr_bytes))
-            .expect(<span class="string">&quot;Library should be built in 32 bit targets or higher&quot;</span>);
-        <span class="kw">let </span>mt_commitment = MerkleTreeCommitment::from_bytes(<span class="kw-2">&amp;</span>bytes[<span class="number">52</span>..])<span class="question-mark">?</span>;
+        <span class="kw">let </span>mt_commitment = MerkleTreeCommitment::from_bytes(<span class="kw-2">&amp;</span>bytes[<span class="number">48</span>..])<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             aggregate_key,
+            nr_parties: mt_commitment.nr_leaves,
             mt_commitment,
-            nr_parties,
         })
     }
 }
@@ -1198,8 +1255,12 @@
     </span>aggregate: Signature,
     <span class="doccomment">/// Non-signing keys
     </span><span class="kw">pub </span>keys: Vec&lt;PublicKey&gt;,
-    <span class="doccomment">/// Batch proof of membership of non-signing keys
-    </span><span class="kw">pub </span>batch_proof: <span class="prelude-ty">Option</span>&lt;BatchPath&lt;H&gt;&gt;,
+    <span class="attr">#[cfg(feature = <span class="string">&quot;efficient-mtproof&quot;</span>)]
+    </span><span class="doccomment">/// Batch proof of membership of non-signing keys
+    </span><span class="kw">pub </span>proof: <span class="prelude-ty">Option</span>&lt;BatchPath&lt;H&gt;&gt;,
+    <span class="attr">#[cfg(not(feature = <span class="string">&quot;efficient-mtproof&quot;</span>))]
+    </span><span class="doccomment">/// Proof of membership of non-signing keys
+    </span><span class="kw">pub </span>proof: <span class="prelude-ty">Option</span>&lt;Vec&lt;Path&lt;H&gt;&gt;&gt;,
 }
 
 <span class="kw">impl</span>&lt;H&gt; Registration&lt;H&gt;
@@ -1260,6 +1321,7 @@
     /// # use atms::AtmsError;
     /// # use blake2::Blake2b;
     /// # use rand_core::OsRng;
+    /// # use digest::consts::U32;
     /// # fn main() -&gt; Result&lt;(), AtmsError&gt; {
     /// let mut rng = OsRng;
     /// let sk_1 = SigningKey::gen(&amp;mut rng);
@@ -1269,7 +1331,7 @@
     /// let pk_2 = PublicKey::from(&amp;sk_2);
     /// let pkpop_2 = PublicKeyPoP::from(&amp;sk_2);
     ///
-    /// let atms_registration = Registration::&lt;Blake2b&gt;::new(&amp;[pkpop_1.clone(), pkpop_1.clone()])?;
+    /// let atms_registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(&amp;[pkpop_1.clone(), pkpop_1.clone()])?;
     ///
     /// let mut indices_1 = atms_registration.get_index(&amp;pk_1);
     /// indices_1.sort_unstable();
@@ -1312,7 +1374,10 @@
     </span><span class="attr">#[allow(dead_code)]
     </span><span class="kw">fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(
-            <span class="number">48 </span>+ <span class="number">4 </span>+ <span class="self">self</span>.leaf_map.len() * (<span class="number">48 </span>+ <span class="number">4</span>) + <span class="number">4 </span>+ <span class="self">self</span>.tree.nodes.len() * H::output_size(),
+            <span class="number">48 </span>+ <span class="number">4
+                </span>+ <span class="self">self</span>.leaf_map.len() * (<span class="number">48 </span>+ <span class="number">4</span>)
+                + <span class="number">4
+                </span>+ <span class="self">self</span>.tree.nodes.len() * &lt;H <span class="kw">as </span>Digest&gt;::output_size(),
         );
         result.extend_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.aggregate_key.to_bytes());
         <span class="kw">let </span>len = u32::try_from(<span class="self">self</span>.leaf_map.len()).expect(<span class="string">&quot;Length must fit in u32&quot;</span>);
@@ -1426,21 +1491,35 @@
             </span>.iter()
             .sum();
 
-        <span class="kw">let </span>batch_proof = <span class="kw">if </span>keys.is_empty() {
+        <span class="kw">let </span>proof = <span class="kw">if </span>keys.is_empty() {
             <span class="prelude-val">None
         </span>} <span class="kw">else </span>{
-            <span class="comment">// We need to order keys and indices. Note that before committing to the keys
-            // we order the slice, therefore the indices will be ordered with respect to the
-            // keys
-            </span>keys.sort_unstable();
-            non_signer_indices.sort_unstable();
-            <span class="prelude-val">Some</span>(registration.tree.get_batched_path(non_signer_indices))
+            <span class="attr">#[cfg(feature = <span class="string">&quot;efficient-mtproof&quot;</span>)]
+            </span>{
+                <span class="comment">// We need to order keys and indices. Note that before committing to the keys
+                // we order the slice, therefore the indices will be ordered with respect to the
+                // keys
+                </span>keys.sort_unstable();
+                non_signer_indices.sort_unstable();
+                <span class="prelude-val">Some</span>(registration.tree.get_batched_path(non_signer_indices))
+            }
+            <span class="attr">#[cfg(not(feature = <span class="string">&quot;efficient-mtproof&quot;</span>))]
+            </span>{
+                keys.sort_unstable();
+                non_signer_indices.sort_unstable();
+                <span class="prelude-val">Some</span>(
+                    non_signer_indices
+                        .iter()
+                        .map(|<span class="kw-2">&amp;</span>idx| registration.tree.get_path(idx))
+                        .collect(),
+                )
+            }
         };
 
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             aggregate,
             keys,
-            batch_proof,
+            proof,
         })
     }
 
@@ -1468,6 +1547,7 @@
     /// # use atms::AtmsError;
     /// # use blake2::Blake2b;
     /// # use rand_core::OsRng;
+    /// # use digest::consts::U32;
     /// # fn main() -&gt; Result&lt;(), AtmsError&gt; {
     /// let n = 10; // number of parties
     /// let subset_is = [1, 2, 3, 5, 6, 7, 9];
@@ -1486,7 +1566,7 @@
     ///     sk_pks.push((sk, pk));
     /// }
     ///
-    /// let atms_registration = Registration::&lt;Blake2b&gt;::new(&amp;keyspop)?;
+    /// let atms_registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(&amp;keyspop)?;
     ///
     /// for i in 0..n {
     ///     let (sk, pk) = &amp;sk_pks[i];
@@ -1516,38 +1596,35 @@
     </span><span class="kw">pub fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], avk: <span class="kw-2">&amp;</span>Avk&lt;H&gt;, threshold: usize) -&gt; <span class="prelude-ty">Result</span>&lt;(), AtmsError&gt; {
         <span class="comment">// The threshold must be higher than half the size of the parties.
         </span><span class="macro">assert!</span>(threshold &gt; (avk.nr_parties / <span class="number">2</span>));
-        <span class="comment">// Check duplicates by building this set of
-        // non-signing keys
-        </span><span class="kw">let </span><span class="kw-2">mut </span>unique_non_signers = HashSet::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>non_signing_size = <span class="number">0</span>;
 
         <span class="kw">if </span>!<span class="self">self</span>.keys.is_empty() {
             <span class="comment">// Check inclusion proofs
-            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(proof) = <span class="kw-2">&amp;</span><span class="self">self</span>.batch_proof {
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(proof) = <span class="kw-2">&amp;</span><span class="self">self</span>.proof {
                 <span class="kw">let </span>compressed_keys = <span class="self">self
                     </span>.keys
                     .iter()
                     .map(|k| k.<span class="number">0</span>.compress().to_vec())
                     .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-                avk.mt_commitment.check_batched(<span class="kw-2">&amp;</span>compressed_keys, proof)<span class="question-mark">?</span>;
-                <span class="comment">// todo: best compress or serialize?
-                </span><span class="kw">for </span>non_signer <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.keys {
-                    <span class="comment">// todo: do we actually need non-signers to be distinct?
-                    </span>non_signing_size += <span class="number">1</span>;
-                    <span class="comment">// Check non-signers are distinct
-                    </span><span class="kw">if </span>!unique_non_signers.insert(non_signer) {
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(AtmsError::FoundDuplicates(<span class="kw-2">*</span>non_signer));
+                <span class="attr">#[cfg(feature = <span class="string">&quot;efficient-mtproof&quot;</span>)]
+                </span>avk.mt_commitment.check_batched(<span class="kw-2">&amp;</span>compressed_keys, proof)<span class="question-mark">?</span>;
+                <span class="attr">#[cfg(not(feature = <span class="string">&quot;efficient-mtproof&quot;</span>))]
+                </span>{
+                    <span class="kw">for </span>(key, proof) <span class="kw">in </span>compressed_keys.iter().zip(proof.iter()) {
+                        avk.mt_commitment.check(key, proof)<span class="question-mark">?</span>;
                     }
                 }
+            } <span class="kw">else </span>{
+                <span class="comment">// Non-signers keys but no proof of membership.
+                </span><span class="kw">return </span><span class="prelude-val">Err</span>(AtmsError::InvalidMerkleProof);
             }
 
-            <span class="kw">if </span>non_signing_size &gt; avk.nr_parties - threshold {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(AtmsError::TooMuchOutstandingSigners(non_signing_size));
+            <span class="kw">if </span><span class="self">self</span>.keys.len() &gt; avk.nr_parties - threshold {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(AtmsError::TooMuchOutstandingSigners(<span class="self">self</span>.keys.len()));
             }
         }
         <span class="comment">// Check with the underlying signature scheme that the quotient of the
         // aggregated key by the non-signers validates this signature.
-        </span><span class="kw">let </span>final_key = avk.aggregate_key - unique_non_signers.into_iter().sum();
+        </span><span class="kw">let </span>final_key = avk.aggregate_key - <span class="self">self</span>.keys.iter().sum();
         blst_err_to_atms(
             <span class="self">self</span>.aggregate
                 .<span class="number">0
@@ -1568,40 +1645,88 @@
     </span><span class="kw">pub fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>aggregate_sig_bytes = Vec::new();
         <span class="kw">let </span>nr_non_signers = u32::try_from(<span class="self">self</span>.keys.len()).expect(<span class="string">&quot;Length must fit in u32&quot;</span>);
+        <span class="macro">println!</span>(<span class="string">&quot;Num of non signers: {:?}&quot;</span>, nr_non_signers);
         aggregate_sig_bytes.extend_from_slice(<span class="kw-2">&amp;</span>nr_non_signers.to_be_bytes());
+
+        <span class="attr">#[cfg(not(feature = <span class="string">&quot;efficient-mtproof&quot;</span>))]
+        </span><span class="kw">if </span>nr_non_signers &gt; <span class="number">0 </span>{
+            aggregate_sig_bytes.extend_from_slice(
+                <span class="kw-2">&amp;</span>u32::try_from(
+                    <span class="self">self</span>.proof
+                        .as_ref()
+                        .expect(<span class="string">&quot;If nr of non_signers is &gt; 0, there will be a proof&quot;</span>)[<span class="number">0</span>]
+                        .values
+                        .len(),
+                )
+                .expect(<span class="string">&quot;Length must fit in u32&quot;</span>)
+                .to_be_bytes(),
+            );
+        }
 
         aggregate_sig_bytes.extend_from_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.aggregate.to_bytes());
         <span class="kw">for </span>key <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.keys {
             aggregate_sig_bytes.extend_from_slice(<span class="kw-2">&amp;</span>key.to_bytes());
         }
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(proof) = <span class="kw-2">&amp;</span><span class="self">self</span>.batch_proof {
-            aggregate_sig_bytes.extend_from_slice(<span class="kw-2">&amp;</span>proof.to_bytes());
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(proof) = <span class="kw-2">&amp;</span><span class="self">self</span>.proof {
+            <span class="attr">#[cfg(feature = <span class="string">&quot;efficient-mtproof&quot;</span>)]
+            </span>aggregate_sig_bytes.extend_from_slice(<span class="kw-2">&amp;</span>proof.to_bytes());
+            <span class="attr">#[cfg(not(feature = <span class="string">&quot;efficient-mtproof&quot;</span>))]
+            </span><span class="kw">for </span>single_proof <span class="kw">in </span>proof.iter() {
+                aggregate_sig_bytes.extend_from_slice(<span class="kw-2">&amp;</span>single_proof.to_bytes());
+            }
         }
 
         aggregate_sig_bytes
     }
 
-    <span class="doccomment">/// Deserialise a byte string to an `AggregateSig`.
+    <span class="attr">#[allow(unused_mut, unused_variables)]
+    </span><span class="doccomment">/// Deserialise a byte string to an `AggregateSig`.
     </span><span class="kw">pub fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, AtmsError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>u64_bytes = [<span class="number">0u8</span>; <span class="number">4</span>];
-        u64_bytes.copy_from_slice(<span class="kw-2">&amp;</span>bytes[..<span class="number">4</span>]);
-        <span class="kw">let </span>non_signers = usize::try_from(u32::from_be_bytes(u64_bytes))
+        <span class="kw">let </span><span class="kw-2">mut </span>u32_bytes = [<span class="number">0u8</span>; <span class="number">4</span>];
+        u32_bytes.copy_from_slice(<span class="kw-2">&amp;</span>bytes[..<span class="number">4</span>]);
+        <span class="kw">let </span>non_signers = usize::try_from(u32::from_be_bytes(u32_bytes))
             .expect(<span class="string">&quot;Library should be built in 32 bit targets or higher&quot;</span>);
 
-        <span class="kw">let </span>aggregate = Signature::from_bytes(<span class="kw-2">&amp;</span>bytes[<span class="number">4</span>..])<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>offset = <span class="number">4</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>size_proofs = <span class="number">0</span>;
+        <span class="attr">#[cfg(not(feature = <span class="string">&quot;efficient-mtproof&quot;</span>))]
+        </span>{
+            <span class="kw">if </span>non_signers &gt; <span class="number">0 </span>{
+                offset += <span class="number">4</span>;
+                u32_bytes.copy_from_slice(<span class="kw-2">&amp;</span>bytes[<span class="number">4</span>..<span class="number">8</span>]);
+                <span class="comment">// todo: properly handle this
+                </span>size_proofs = usize::try_from(u32::from_be_bytes(u32_bytes))
+                    .expect(<span class="string">&quot;Library should be built in 32 bit targets or higher&quot;</span>);
+            }
+        }
+
+        <span class="kw">let </span>aggregate = Signature::from_bytes(<span class="kw-2">&amp;</span>bytes[offset..])<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>keys: Vec&lt;PublicKey&gt; = Vec::with_capacity(non_signers);
 
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..non_signers {
-            <span class="kw">let </span>pk_offset = <span class="number">100 </span>+ i * <span class="number">48</span>;
+            <span class="kw">let </span>pk_offset = offset + <span class="number">96 </span>+ i * <span class="number">48</span>;
             <span class="kw">let </span>pk = PublicKey::from_bytes(<span class="kw-2">&amp;</span>bytes[pk_offset..])<span class="question-mark">?</span>;
 
             keys.push(pk);
         }
 
-        <span class="kw">let </span>batch_proof = <span class="kw">if </span>non_signers &gt; <span class="number">0 </span>{
-            <span class="kw">let </span>proof_offset = <span class="number">100 </span>+ non_signers * <span class="number">48</span>;
-            <span class="prelude-val">Some</span>(BatchPath::from_bytes(<span class="kw-2">&amp;</span>bytes[proof_offset..])<span class="question-mark">?</span>)
+        <span class="comment">// todo: have a different serialisation function of Paths such that only the hashes and position are serialised (and not the height of the tree given that it is redundant)
+        </span><span class="kw">let </span>proof = <span class="kw">if </span>non_signers &gt; <span class="number">0 </span>{
+            <span class="kw">let </span>proof_offset = offset + <span class="number">96 </span>+ non_signers * <span class="number">48</span>;
+            <span class="attr">#[cfg(feature = <span class="string">&quot;efficient-mtproof&quot;</span>)]
+            </span>{
+                <span class="prelude-val">Some</span>(BatchPath::from_bytes(<span class="kw-2">&amp;</span>bytes[proof_offset..])<span class="question-mark">?</span>)
+            }
+            <span class="attr">#[cfg(not(feature = <span class="string">&quot;efficient-mtproof&quot;</span>))]
+            </span>{
+                <span class="kw">let </span>proof_size = &lt;H <span class="kw">as </span>Digest&gt;::output_size() * size_proofs + <span class="number">8</span>; <span class="comment">// plus 8 for the index and depth
+                </span><span class="kw">let </span><span class="kw-2">mut </span>mt_proofs = Vec::with_capacity(non_signers);
+                <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..non_signers {
+                    mt_proofs.push(Path::from_bytes(<span class="kw-2">&amp;</span>bytes[proof_offset + i * proof_size..])<span class="question-mark">?</span>);
+                }
+                <span class="prelude-val">Some</span>(mt_proofs)
+            }
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>};
@@ -1609,7 +1734,7 @@
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             aggregate,
             keys,
-            batch_proof,
+            proof,
         })
     }
 }
@@ -1620,6 +1745,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::multi_sig::{PublicKey, PublicKeyPoP, Signature, SigningKey};
     <span class="kw">use </span>blake2::Blake2b;
 
+    <span class="kw">use </span>digest::consts::U32;
     <span class="kw">use </span>proptest::prelude::<span class="kw-2">*</span>;
     <span class="kw">use </span>rand::seq::SliceRandom;
     <span class="kw">use </span>rand_chacha::ChaCha20Rng;
@@ -1644,7 +1770,7 @@
                 pkpops.push(pkpop);
                 sk_pks.push((sk, pk));
             }
-            <span class="kw">let </span>registration = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
+            <span class="kw">let </span>registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
 
             <span class="kw">for </span>(sk, pk) <span class="kw">in </span>sk_pks {
                 <span class="kw">let </span>sig = sk.sign(<span class="kw-2">&amp;</span>msg);
@@ -1680,7 +1806,7 @@
             }
             pks.sort();
 
-            <span class="kw">let </span>registration = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
+            <span class="kw">let </span>registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
 
             <span class="kw">for </span>(index, pk) <span class="kw">in </span>pks.iter().enumerate() {
                 <span class="kw">let </span>indices = registration.get_index(pk);
@@ -1713,7 +1839,7 @@
                 pkpops.push(PublicKeyPoP::from(<span class="kw-2">&amp;</span>sk_pks[i % num_pks].<span class="number">0</span>));
             }
 
-            <span class="kw">let </span>registration = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
+            <span class="kw">let </span>registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
 
             <span class="kw">for </span>(sk, pk) <span class="kw">in </span>sk_pks {
                 <span class="kw">let </span>sig = sk.sign(<span class="kw-2">&amp;</span>msg);
@@ -1744,7 +1870,7 @@
                 pkpops.push(pkpop);
                 sk_pks.push((sk, pk));
             }
-            <span class="kw">let </span>registration = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
+            <span class="kw">let </span>registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
 
             <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..num_sigs {
                 <span class="kw">let </span>(sk, pk) = <span class="kw-2">&amp;</span>sk_pks[i % num_pks];
@@ -1757,7 +1883,7 @@
             }
             <span class="kw">let </span>mu = AggregateSig::new(<span class="kw-2">&amp;</span>registration, <span class="kw-2">&amp;</span>sigs, <span class="kw-2">&amp;</span>msg).expect(<span class="string">&quot;Signatures should be valid&quot;</span>);
             <span class="kw">let </span>bytes = mu.to_bytes();
-            <span class="kw">let </span>recovered = AggregateSig::&lt;Blake2b&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
+            <span class="kw">let </span>recovered = AggregateSig::&lt;Blake2b&lt;U32&gt;&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
             <span class="kw">match </span>recovered.verify(<span class="kw-2">&amp;</span>msg, <span class="kw-2">&amp;</span>registration.to_avk(), num_pks - (num_pks - <span class="number">1</span>) / <span class="number">3</span>) {
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
                     <span class="macro">assert!</span>(num_sigs &gt;= num_pks - (num_pks - <span class="number">1</span>) / <span class="number">3</span>);
@@ -1788,7 +1914,7 @@
                 pkpops.push(pkpop);
                 sk_pks.push((sk, pk));
             }
-            <span class="kw">let </span>registration = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
+            <span class="kw">let </span>registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
 
             <span class="kw">for </span>(sk, pk) <span class="kw">in </span>sk_pks {
                 <span class="kw">let </span>sig = sk.sign(<span class="kw-2">&amp;</span>msg);
@@ -1815,9 +1941,9 @@
                 <span class="kw">let </span>pkpop = PublicKeyPoP::from(<span class="kw-2">&amp;</span>sk);
                 pkpops.push(pkpop);
             }
-            <span class="kw">let </span>registration = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
+            <span class="kw">let </span>registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Registration should pass with valid keys&quot;</span>);
             <span class="kw">let </span>bytes = registration.to_bytes();
-            <span class="kw">let </span>test = Registration::&lt;Blake2b&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
+            <span class="kw">let </span>test = Registration::&lt;Blake2b&lt;U32&gt;&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
             <span class="macro">assert!</span>(test.to_avk().check(<span class="kw-2">&amp;</span>pkpops).is_ok());
         }
 
@@ -1867,7 +1993,7 @@
                 pks.push(pk);
             }
 
-            <span class="kw">let </span>registration = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pks).expect(<span class="string">&quot;Valid keys should have a valid registration.&quot;</span>);
+            <span class="kw">let </span>registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pks).expect(<span class="string">&quot;Valid keys should have a valid registration.&quot;</span>);
             <span class="macro">assert!</span>(registration.to_avk().check(<span class="kw-2">&amp;</span>pks).is_ok());
         }
 
@@ -1885,9 +2011,9 @@
                 pks.push(pk);
             }
 
-            <span class="kw">let </span>avk = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pks).expect(<span class="string">&quot;Valid keys should have a valid registration.&quot;</span>).to_avk();
+            <span class="kw">let </span>avk = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pks).expect(<span class="string">&quot;Valid keys should have a valid registration.&quot;</span>).to_avk();
             <span class="kw">let </span>bytes = avk.to_bytes();
-            <span class="kw">let </span>test = Avk::&lt;Blake2b&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
+            <span class="kw">let </span>test = Avk::&lt;Blake2b&lt;U32&gt;&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
             <span class="macro">assert!</span>(test.check(<span class="kw-2">&amp;</span>pks).is_ok());
         }
 
@@ -1905,9 +2031,9 @@
                 pks.push(pk);
             }
 
-            <span class="kw">let </span>registration = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pks).expect(<span class="string">&quot;Valid keys should have a valid registration.&quot;</span>);
+            <span class="kw">let </span>registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pks).expect(<span class="string">&quot;Valid keys should have a valid registration.&quot;</span>);
             pks.shuffle(<span class="kw-2">&amp;mut </span>rng);
-            <span class="kw">let </span>shuffled_reg = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pks).expect(<span class="string">&quot;Shufled keys should have a correct registration.&quot;</span>);
+            <span class="kw">let </span>shuffled_reg = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pks).expect(<span class="string">&quot;Shufled keys should have a correct registration.&quot;</span>);
             <span class="macro">assert_eq!</span>(registration.to_avk(), shuffled_reg.to_avk());
             <span class="macro">assert!</span>(registration.to_avk().check(<span class="kw-2">&amp;</span>pks).is_ok());
         }
@@ -1938,7 +2064,7 @@
                 keyspop[<span class="number">0</span>] = false_pkpop;
             }
 
-            <span class="kw">match </span>Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>keyspop) {
+            <span class="kw">match </span>Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>keyspop) {
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
                     <span class="macro">assert_eq!</span>(<span class="number">0</span>, invalid_pop);
                     <span class="macro">assert_eq!</span>(<span class="number">0</span>, repeated_reg);
@@ -1977,7 +2103,7 @@
                 sk_pks.push((sk, pk));
             }
 
-            <span class="kw">let </span>registration = Registration::&lt;Blake2b&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Re\
+            <span class="kw">let </span>registration = Registration::&lt;Blake2b&lt;U32&gt;&gt;::new(<span class="kw-2">&amp;</span>pkpops).expect(<span class="string">&quot;Re\
             gistration should pass with valid keys&quot;</span>);
 
             <span class="kw">for </span>(sk, pk) <span class="kw">in </span>sk_pks {
@@ -2005,12 +2131,12 @@
             false_susbset[<span class="number">0</span>] = sigs[false_mk_proof % n];
             <span class="kw">let </span>false_aggr = AggregateSig::new(<span class="kw-2">&amp;</span>registration, <span class="kw-2">&amp;</span>false_susbset, <span class="kw-2">&amp;</span>msg).expect(<span class="string">&quot;Signatures should be valid&quot;</span>);
             <span class="kw">if </span>aggr_sig.keys.len() == false_aggr.keys.len() {
-                aggr_sig.batch_proof = false_aggr.batch_proof.clone();
+                aggr_sig.proof = false_aggr.proof.clone();
             }
 
             <span class="kw">if </span>aggr_sig.keys.len() == false_aggr.keys.len() &amp;&amp; aggr_sig.keys.len() &gt; <span class="number">1 </span>&amp;&amp; repeate_non_signer == <span class="number">1 </span>{
                 aggr_sig.keys[<span class="number">0</span>] = false_aggr.keys[<span class="number">1</span>];
-                aggr_sig.batch_proof = false_aggr.batch_proof.clone();
+                aggr_sig.proof = false_aggr.proof.clone();
             }
 
             <span class="kw">let </span>avk = registration.to_avk();
