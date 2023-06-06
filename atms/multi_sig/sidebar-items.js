@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ProofOfPossession","Proof of possession, proving the correctness of a public key."],["PublicKey","Public Key."],["PublicKeyPoP","A public key with its proof of possession."],["Signature","ATMS partial signature."],["SigningKey","Signing key."]]});
+window.SIDEBAR_ITEMS = {"struct":["ProofOfPossession","PublicKey","PublicKeyPoP","Signature","SigningKey"]};

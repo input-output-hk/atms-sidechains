@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["AggregatePublicKey",""],["AggregateSignature",""],["PublicKey",""],["SecretKey","Secret Key"],["Signature",""]]});
+window.SIDEBAR_ITEMS = {"struct":["AggregatePublicKey","AggregateSignature","PublicKey","SecretKey","Signature"]};

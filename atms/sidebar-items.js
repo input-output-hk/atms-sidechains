@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["AtmsError","Errors associated with Atms"]],"mod":[["aggregation","Aggregation module, which contains the mechanisms to compute and verify the aggregate signatures and keys of an ATMS signature protocol."],["merkle_tree","Merkle tree module, exposing several ops on Merkle Trees."],["multi_sig","Multi signature module, which contains the wrappers around blst to build Boldryeva multi signature scheme."]]});
+window.SIDEBAR_ITEMS = {"enum":["AtmsError"],"mod":["aggregation","merkle_tree","multi_sig"]};
